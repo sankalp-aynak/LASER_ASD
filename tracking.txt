@@ -1,0 +1,54 @@
+channel 16 layer 1 instgpu5 map 94.93 reverse 84.73
+channel 16 layer 2 instgpu4 map 95.07 reverse 85.02
+channel 16 layer 3 instgpu3 map 95.15 reverse 82.90
+channel 16 layer 4 instgpu2 map 95.01 reverse 82.39
+channel 8  layer 1 instgpu5 map 94.76 reverse 85.57 
+channel 8  layer 2 instgpu5 map 95.14 reverse 83.59 
+channel 8  layer 3 instgpu3 map 94.92 reverse 86.13
+channel 8  layer 4 instgpu3 map 95.12 reverse 84.86
+channel 4  layer 1 instgpu2 map 95.11 reverse 86.88 
+channel 4  layer 2 instgpu2 map 95.41 reverse 86.16 
+channel 4  layer 3 instgpu4 map 95.38 reverse 83.78
+channel 4  layer 4 instgpu4 map 95.4  reverse 85.08
+channel 2  layer 1 instgpu2 map 95.22 reverse 84.26
+channel 2  layer 2 instgpu2 map 95.56 reverse 84.71
+channel 2  layer 3 instgpu3 map 95.38 reverse 84.17
+channel 2  layer 4 instgpu3 map 94.65 reverse 86.49
+channel 1  layer 1 instgpu4 map 95.25 reverse 84.85
+channel 1  layer 2 instgpu4 map 95.2  reverse 84.34
+channel 1  layer 3 instgpu1 map 95.57 reverse 85.47
+channel 1  layer 4 instgpu1 map 95.27 reverse 85.31
+talknce            instgpu1 map 95.59 reverse 84.69 
+loconet            instgpu1 map 95.2  reverse 83.66 
+
+=====================================================
+talknce                                              map 95.5                                   | acc 93.58                                  | reverse 84.69
+loconet                                              map 95.2                                   | acc 93.42                                  | reverse 83.66
+channel 4 layer 1 method kl  lambda 0.2  waiv4       map_landmark 95.18 | map_no_landmark 95.19 | acc_landmark 93.16 | acc_no_landmark 93.16 | reverse_landmark 87.27 | reverse_no_landmark 87.3
+channel 4 layer 1 method kl  lambda 0.4  instgpu-02  done
+channel 4 layer 1 method kl  lambda 0.6  instgpu-02  done
+channel 4 layer 1 method kl  lambda 0.8  instgpu-01  map_landmark 95.4  | map_no_landmark 95.43 | acc_landmark 93.48 | acc_no_landmark 93.49| reverse_landmark 86.49 | reverse_no_landmark 86.15
+channel 4 layer 1 method kl  lambda 1    instgpu-01 done
+channel 4 layer 1 method mse lambda 0.2  instgpu-03 done
+channel 4 layer 1 method mse lambda 0.4  instgpu-03 done
+channel 4 layer 1 method mse lambda 0.6  instgpu-04 done
+channel 4 layer 1 method mse lambda 0.8  instgpu-04 done
+channel 4 layer 1 method mse lambda 1    waiv4      done
+
+channel 4 layer 2 method kl  lambda 0.2  waiv4       done
+channel 4 layer 1 method kl  lambda 0.4  instgpu-02  done
+channel 4 layer 2 method kl  lambda 0.6  instgpu-02 
+channel 4 layer 2 method kl  lambda 0.8  instgpu-01  done
+channel 4 layer 2 method kl  lambda 1    instgpu-01  done
+channel 4 layer 2 method mse lambda 0.2  instgpu-03  done
+channel 4 layer 2 method mse lambda 0.4  instgpu-03  
+channel 4 layer 2 method mse lambda 0.6  instgpu-04  done
+channel 4 layer 2 method mse lambda 0.8  instgpu-04 done
+channel 4 layer 2 method mse lambda 1    waiv4     cancel
+
+channel 4 3D CNN instpu-05
+channel 2 3D CNN 
+
+loconet channel 4 layer 1 kl lambda 0.2 waiv4
+
+

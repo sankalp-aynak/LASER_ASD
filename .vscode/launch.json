@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: test_reverse",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "--cfg", "configs/multi.yaml", "evalDataType", "val"
+            ]
+        }, 
+        {
+            "name": "Python Debugger: test mAP",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "-g", "/nobackup/le/LoCoNet/AVA_Dataset/csv/val_orig.csv", "-p", "/nobackup/le/LoCoNet/0_res.csv"
+            ]
+        }
+    ]
+}
