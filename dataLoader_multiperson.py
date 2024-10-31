@@ -399,3 +399,146 @@ class val_loader(object):
 
     def __len__(self):
         return len(self.mixLst)
+
+class val_loader_with_reverse(object):
+
+    def __init__(self, cfg, trialFileName, audioPath, audioReversePath, visualPath, num_speakers):
+        self.cfg = cfg
+        self.audioPath = audioPath
+        self.visualPath = visualPath
+        self.audioReversePath = audioReversePath
+        self.candidate_speakers = num_speakers
+        self.path = os.path.join(cfg.DATA.dataPathAVA, "csv")
+        self.entity_data = json.load(open(os.path.join(self.path, 'val_entity.json')))
+        self.ts_to_entity = json.load(open(os.path.join(self.path, 'val_ts.json')))
+        self.mixLst = open(trialFileName).read().splitlines()
+
+    def load_single_audio(self, audio, fps, numFrames, audioAug=False, aug_audio=None):
+
+        res = vggish_input.waveform_to_examples(audio, 16000, numFrames, fps, return_tensor=False)
+        return res
+
+    def load_visual_label_mask(self, videoName, entityName, target_ts, context_ts):
+
+        faceFolderPath = os.path.join(self.visualPath, videoName, entityName)
+
+        faces = []
+        H = 112
+        labels_dict = self.entity_data[videoName][entityName]
+        labels = numpy.zeros(len(target_ts))
+        mask = numpy.zeros(len(target_ts))
+
+        for i, time in enumerate(target_ts):
+            if time not in context_ts:
+                faces.append(numpy.zeros((H, H)))
+            else:
+                labels[i] = labels_dict[time]
+                mask[i] = 1
+                time = "%.2f" % float(time)
+                faceFile = os.path.join(faceFolderPath, str(time) + '.jpg')
+
+                face = cv2.imread(faceFile)
+                face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+                face = cv2.resize(face, (H, H))
+                faces.append(face)
+        faces = numpy.array(faces)
+        return faces, labels, mask
+
+    def get_speaker_context(self, videoName, target_entity, all_ts, center_ts):
+
+        context_speakers = list(self.ts_to_entity[videoName][center_ts])
+        context = {}
+        chosen_speakers = []
+        context[target_entity] = all_ts
+        context_speakers.remove(target_entity)
+        num_frames = len(all_ts)
+        for candidate in context_speakers:
+            candidate_ts = self.entity_data[videoName][candidate]
+            shared_ts = set(all_ts).intersection(set(candidate_ts))
+            context[candidate] = shared_ts
+            chosen_speakers.append(candidate)
+            # if (len(shared_ts) > (num_frames / 2)):
+            # context[candidate] = shared_ts
+            # chosen_speakers.append(candidate)
+        context_speakers = chosen_speakers
+        random.shuffle(context_speakers)
+        if not context_speakers:
+            context_speakers.insert(0, target_entity)    # make sure is at 0
+            while len(context_speakers) < self.candidate_speakers:
+                context_speakers.append(random.choice(context_speakers))
+        elif len(context_speakers) < self.candidate_speakers:
+            context_speakers.insert(0, target_entity)    # make sure is at 0
+            while len(context_speakers) < self.candidate_speakers:
+                context_speakers.append(random.choice(context_speakers[1:]))
+        else:
+            context_speakers.insert(0, target_entity)    # make sure is at 0
+            context_speakers = context_speakers[:self.candidate_speakers]
+
+        assert set(context_speakers).issubset(set(list(context.keys()))), target_entity
+
+        return context_speakers, context
+
+    def __getitem__(self, index):
+
+        target_video = self.mixLst[index]
+        data = target_video.split('\t')
+        fps = float(data[2])
+        videoName = data[0][:11]
+        target_entity = data[0]
+        all_ts = list(self.entity_data[videoName][target_entity].keys())
+        numFrames = int(data[1])
+        # print(numFrames, len(all_ts))
+        assert numFrames == len(all_ts)
+
+        center_ts = all_ts[math.floor(numFrames / 2)]
+
+        # get context speakers which have more than half time overlapped with target speaker
+        context_speakers, context = self.get_speaker_context(videoName, target_entity, all_ts,
+                                                             center_ts)
+
+        sr, audio = wavfile.read(os.path.join(self.audioPath, videoName, target_entity + '.wav'))
+        audio = self.load_single_audio(audio, fps, numFrames, audioAug=False)
+
+        sr, audio_reverse = wavfile.read(os.path.join(self.audioReversePath, videoName, target_entity + '.wav'))
+        audio_reverse = self.load_single_audio(audio_reverse, fps, numFrames, audioAug=False)
+
+        visualFeatures, labels, masks = [], [], []
+
+        # target_label = list(self.entity_data[videoName][target_entity].values())
+        target_visual, target_labels, target_masks = self.load_visual_label_mask(
+            videoName, target_entity, all_ts, all_ts)
+
+        for idx, context_entity in enumerate(context_speakers):
+            if context_entity == target_entity:
+                label = target_labels
+                visualfeat = target_visual
+                mask = target_masks
+            else:
+                visualfeat, label, mask = self.load_visual_label_mask(videoName, context_entity,
+                                                                      all_ts,
+                                                                      context[context_entity])
+            visualFeatures.append(visualfeat)
+            labels.append(label)
+            masks.append(mask)
+
+        audio = torch.FloatTensor(audio)[None, :, :]
+        audio_reverse = torch.FloatTensor(audio_reverse)[None, :, :]
+
+        visualFeatures = torch.FloatTensor(numpy.array(visualFeatures))
+        audio_t = audio.shape[1]
+        video_t = visualFeatures.shape[1]
+        audio__reverse_t = audio_reverse.shape[1]
+
+        if audio_t != video_t * 4:
+            print(visualFeatures.shape, audio.shape, videoName, target_entity, numFrames)
+
+        if audio__reverse_t != video_t * 4:
+            print(visualFeatures.shape, audio_reverse.shape, videoName, target_entity, numFrames)
+        
+        labels = torch.LongTensor(numpy.array(labels))
+        masks = torch.LongTensor(numpy.array(masks))
+
+        return audio, audio_reverse, visualFeatures, labels, masks
+
+    def __len__(self):
+        return len(self.mixLst)

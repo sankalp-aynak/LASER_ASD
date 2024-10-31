@@ -1,7 +1,7 @@
 import time, os, torch, argparse, warnings, glob, pandas, json
 
 from utils.tools import *
-from dlhammer import bootstrap
+from dlhammer.dlhammer import bootstrap
 
 from dataLoader_multiperson import val_loader
 from loconet import loconet
@@ -28,12 +28,13 @@ class DataPrep():
 
 def prepare_context_files(cfg):
     path = os.path.join(cfg.DATA.dataPathAVA, "csv")
-    for phase in ["val", "test"]:
+    for phase in ["val"]:
         csv_f = f"{phase}_loader.csv"
         csv_orig = f"{phase}_orig.csv"
         entity_f = os.path.join(path, phase + "_entity.json")
         ts_f = os.path.join(path, phase + "_ts.json")
         if os.path.exists(entity_f) and os.path.exists(ts_f):
+            # print("ok")
             continue
         orig_df = pandas.read_csv(os.path.join(path, csv_orig))
         entity_data = {}
@@ -63,10 +64,10 @@ def prepare_context_files(cfg):
                 ts_to_entity[video_id][ts] = []
             ts_to_entity[video_id][ts].append(entity_id)
 
-        with open(entity_f) as f:
+        with open(entity_f, 'w') as f:
             json.dump(entity_data, f)
 
-        with open(ts_f) as f:
+        with open(ts_f, 'w') as f:
             json.dump(ts_to_entity, f)
 
 

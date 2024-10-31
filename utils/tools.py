@@ -14,11 +14,21 @@ def init_args(args):
     args.visualOrigPathAVA = os.path.join(args.DATA.dataPathAVA, 'orig_videos')
     args.audioPathAVA = os.path.join(args.DATA.dataPathAVA, 'clips_audios')
     args.visualPathAVA = os.path.join(args.DATA.dataPathAVA, 'clips_videos')
+    args.audioPathAVA_reverse     = os.path.join(args.DATA.dataPathAVA, 'clips_audios_reverse')
+    args.audioPathAVA_mute     = os.path.join(args.DATA.dataPathAVA, 'clips_audios_mute')
     args.trainTrialAVA = os.path.join(args.trialPathAVA, 'train_loader.csv')
 
     if args.evalDataType == 'val':
         args.evalTrialAVA = os.path.join(args.trialPathAVA, 'val_loader.csv')
         args.evalOrig = os.path.join(args.trialPathAVA, 'val_orig.csv')
+        args.evalCsvSave = os.path.join(args.WORKSPACE, 'val_res.csv')
+    elif args.evalDataType == 'test_reverse':
+        args.evalTrialAVA = os.path.join(args.trialPathAVA, 'val_loader.csv')
+        args.evalOrig = os.path.join(args.trialPathAVA, 'val_orig_modified.csv')
+        args.evalCsvSave = os.path.join(args.WORKSPACE, 'val_res.csv')
+    elif args.evalDataType == 'test_mute':
+        args.evalTrialAVA = os.path.join(args.trialPathAVA, 'val_loader.csv')
+        args.evalOrig = os.path.join(args.trialPathAVA, 'val_orig_modified.csv')
         args.evalCsvSave = os.path.join(args.WORKSPACE, 'val_res.csv')
     else:
         args.evalTrialAVA = os.path.join(args.trialPathAVA, 'test_loader.csv')

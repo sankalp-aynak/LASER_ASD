@@ -1,15 +1,15 @@
 import time, os, torch, argparse, warnings, glob, pandas, json
 
 from utils.tools import *
-from dlhammer import bootstrap
+from dlhammer.dlhammer import bootstrap
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 import torch.multiprocessing as mp
 import torch.distributed as dist
 
-from xxlib.utils.distributed import all_gather, all_reduce
+# from xxlib.utils.distributed import all_gather, all_reduce
 from torch import nn
 from dataLoader_multiperson import train_loader, val_loader
-
+import wandb
 from loconet import loconet
 
 
@@ -137,10 +137,10 @@ def prepare_context_files(cfg):
                 ts_to_entity[video_id][ts] = []
             ts_to_entity[video_id][ts].append(entity_id)
 
-        with open(entity_f) as f:
+        with open(entity_f, 'w') as f:
             json.dump(entity_data, f)
 
-        with open(ts_f) as f:
+        with open(ts_f, 'w') as f:
             json.dump(ts_to_entity, f)
 
 
@@ -176,16 +176,38 @@ def main(gpu, world_size):
     else:
         epoch = 1
         s = loconet(cfg, rank, device)
+    if rank == 0:
+        wandb.init(
+            # set the wandb project where this run will be logged
+            project="Landmark_LoCoNet",
+            name=f"vanilla",
+            # track hyperparameters and run metadata
+            config = {
+                "learning_rate": cfg.SOLVER.BASE_LR,
+                "architecture": "vanilla_loconet",
+                "dataset": "AVA Active Speaker",
+                "epochs": 25,
+            }
+        )
 
     while (1):
-        loss, lr = s.train_network(epoch=epoch, loader=data.train_dataloader())
+        loss, lr, acc = s.train_network(epoch=epoch, loader=data.train_dataloader())
 
         s.saveParameters(cfg.modelSavePath + "/model_%04d.model" % epoch)
 
         if epoch >= cfg.TRAIN.MAX_EPOCH:
-            quit()
+            break
 
         epoch += 1
+
+        if rank == 0:
+            wandb.log({"acc": acc, "loss": loss, "lr": lr})
+
+    if rank == 0:
+        s.loadParameters(cfg.RESUME_PATH)
+        mAP = s.evaluate_network(epoch=epoch, loader=data.val_dataloader())
+        wandb.summary['test_accuracy (mAP)'] = mAP
+        wandb.finish()
 
 
 if __name__ == '__main__':

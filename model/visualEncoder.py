@@ -136,6 +136,26 @@ class visualFrontend(nn.Module):
         self.resnet = ResNet()
         return
 
+     # hook the gradient of the activation
+    def activations_hook(self, grad):
+        self.gradients = grad
+
+    def get_activations_gradient(self):
+        return self.gradients
+    
+    def get_activations(self, inputBatch):
+        inputBatch = inputBatch.transpose(0, 1).transpose(1, 2)
+        batchsize = inputBatch.shape[0]
+        batch = self.frontend3D(inputBatch)
+
+        batch = batch.transpose(1, 2)
+        batch = batch.reshape(batch.shape[0] * batch.shape[1], batch.shape[2], batch.shape[3],
+                              batch.shape[4])
+        outputBatch = self.resnet.layer1(batch)
+        outputBatch = self.resnet.layer2(outputBatch)
+        outputBatch = self.resnet.layer3(outputBatch)
+        return outputBatch
+
     def forward(self, inputBatch):
         inputBatch = inputBatch.transpose(0, 1).transpose(1, 2)
         batchsize = inputBatch.shape[0]
@@ -144,7 +164,16 @@ class visualFrontend(nn.Module):
         batch = batch.transpose(1, 2)
         batch = batch.reshape(batch.shape[0] * batch.shape[1], batch.shape[2], batch.shape[3],
                               batch.shape[4])
-        outputBatch = self.resnet(batch)
+        outputBatch = self.resnet.layer1(batch)
+        outputBatch = self.resnet.layer2(outputBatch)
+        outputBatch = self.resnet.layer3(outputBatch)
+
+        # hook the gradient
+        if outputBatch.requires_grad:
+            outputBatch.register_hook(self.activations_hook)
+
+        outputBatch = self.resnet.layer4(outputBatch)
+        outputBatch = self.resnet.avgpool(outputBatch)
         outputBatch = outputBatch.reshape(batchsize, -1, 512)
         outputBatch = outputBatch.transpose(1, 2)
         outputBatch = outputBatch.transpose(1, 2).transpose(0, 1)

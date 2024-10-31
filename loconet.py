@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import glob
+import contextlib
 
 import sys, time, numpy, os, subprocess, pandas, tqdm
 
@@ -8,7 +10,13 @@ from loss_multi import lossAV, lossA, lossV
 from model.loconet_encoder import locoencoder
 
 import torch.distributed as dist
-from xxlib.utils.distributed import all_gather, all_reduce
+from utils.distributed import all_gather, all_reduce
+from copy import deepcopy
+import matplotlib.pyplot as plt
+import shutil
+import cv2
+import imageio
+from PIL import Image
 
 
 class Loconet(nn.Module):
@@ -117,8 +125,9 @@ class loconet(nn.Module):
                          lr=lr,
                          loss=loss / (num * self.cfg.NUM_GPUS),
                          acc=(top1 / index)))
+        acc = top1 / index
         dist.barrier()
-        return loss / num, lr
+        return loss / num, lr, acc
 
     def evaluate_network(self, epoch, loader):
         self.eval()
@@ -165,6 +174,209 @@ class loconet(nn.Module):
             str(subprocess.run(cmd, shell=True, capture_output=True).stdout).split(' ')[2][:5])
         return mAP
 
+    def evaluate(self, epoch, loader):
+        self.eval()
+        predScores = []
+        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res.csv".format(epoch))
+        evalOrig = self.cfg.evalOrig
+        for audioFeature, visualFeature, labels, masks in tqdm.tqdm(loader):
+            with torch.no_grad():
+                audioFeature = audioFeature.cuda()
+                visualFeature = visualFeature.cuda()
+                labels = labels.cuda()
+                masks = masks.cuda()
+                b, s, t = visualFeature.shape[0], visualFeature.shape[1], visualFeature.shape[2]
+                visualFeature = visualFeature.view(b * s, *visualFeature.shape[2:])
+                labels = labels.view(b * s, *labels.shape[2:])
+                masks = masks.view(b * s, *masks.shape[2:])
+                audioEmbed = self.model.forward_audio_frontend(audioFeature)
+                visualEmbed = self.model.forward_visual_frontend(visualFeature)
+                audioEmbed = audioEmbed.repeat(s, 1, 1)
+                audioEmbed, visualEmbed = self.model.forward_cross_attention(
+                    audioEmbed, visualEmbed)
+                outsAV = self.model.forward_audio_visual_backend(audioEmbed, visualEmbed, b, s)
+                labels = labels.reshape((-1))
+                masks = masks.reshape((-1))
+                outsAV = outsAV.view(b, s, t, -1)[:, 0, :, :].view(b * t, -1)
+                labels = labels.view(b, s, t)[:, 0, :].view(b * t).cuda()
+                masks = masks.view(b, s, t)[:, 0, :].view(b * t)
+                _, predScore, _, _ = self.lossAV.forward(outsAV, labels, masks)
+                predScore = predScore[:, 1].detach().cpu().numpy()
+                predScores.extend(predScore)
+        evalLines = open(evalOrig).read().splitlines()[1:]
+        labels = []
+        labels = pandas.Series(['SPEAKING_AUDIBLE' if score >= 0.5 else 'NOT_SPEAKING' for score in predScores])
+        scores = pandas.Series(predScores)
+        evalRes = pandas.read_csv(evalOrig)
+        evalRes['score'] = scores
+        evalRes['label'] = labels
+        evalRes.drop(['label_id'], axis=1, inplace=True)
+        evalRes.drop(['instance_id'], axis=1, inplace=True)
+        evalRes.to_csv(evalCsvSave, index=False)
+
+    def evaluate_grad_cam(self, epoch, loader):
+        self.eval()
+        predScores = []
+        savePath = os.path.join(self.cfg.WORKSPACE, "grad_cam")
+        if os.path.exists(savePath):
+            shutil.rmtree(savePath)
+        os.makedirs(savePath)
+        cnt = 0
+        for id, (audioFeature, audioReverseFeature, visualFeature, labels, masks) in tqdm.tqdm(enumerate(loader)):
+            print(torch.sum(audioFeature == audioReverseFeature))
+
+            visualFeatureOriginal = deepcopy(visualFeature)
+            
+            audioReverseFeature = audioReverseFeature.cuda()
+            visualFeature = visualFeature.cuda()
+            labels = labels.cuda()
+            masks = masks.cuda()
+            b, s, t = visualFeature.shape[0], visualFeature.shape[1], visualFeature.shape[2]
+            visualFeature = visualFeature.view(b * s, *visualFeature.shape[2:])
+            labels = labels.view(b * s, *labels.shape[2:])
+            masks = masks.view(b * s, *masks.shape[2:])
+            audioEmbed = self.model.forward_audio_frontend(audioReverseFeature)
+            visualEmbed = self.model.forward_visual_frontend(visualFeature)
+            audioEmbed = audioEmbed.repeat(s, 1, 1)
+            audioEmbed, visualEmbed = self.model.forward_cross_attention(
+                audioEmbed, visualEmbed)
+            outsAV = self.model.forward_audio_visual_backend(audioEmbed, visualEmbed, b, s)
+            outsAV = outsAV.view(b, s, t, -1)[:, 0, :, :].view(b * t, -1)
+            predScore= self.lossAV.forward(outsAV, None, None)
+            predScoreNum = predScore[:, 1].detach().cpu().numpy()
+            wrong_indices = numpy.argwhere(predScoreNum >= 0)
+            
+            if wrong_indices.size != 0:
+                
+                
+                # get the gradient of the output with respect to the parameters of the model
+                loss = torch.sum(predScore[:, 1])
+                loss.backward()
+
+                # pull the gradients out of the model
+                gradients = self.model.visualFrontend.get_activations_gradient()
+
+                # pool the gradients across the channels
+                pooled_gradients = torch.mean(gradients, dim=[2, 3])
+
+                visualReverseCopy = deepcopy(visualFeatureOriginal)
+
+                # get the activations of the last convolutional layer
+                visualReverseCopy = visualReverseCopy.view(b * s, *visualReverseCopy.shape[2:]).cuda()
+                B, T, W, H = visualReverseCopy.shape
+                visualReverseCopy = visualReverseCopy.view(B * T, 1, 1, W, H)
+                visualReverseCopy = (visualReverseCopy / 255 - 0.4161) / 0.1688
+                activations = self.model.visualFrontend.get_activations(visualReverseCopy).detach()
+                # weight the channels by corresponding gradients
+                for i in range(activations.shape[1]):
+                    for j in range(activations.shape[0]):
+                        activations[j, i, :, :] *= pooled_gradients[j, i]
+
+                grad_cam = torch.mean(activations, dim = 1)
+                grad_cam = torch.nn.functional.relu(grad_cam)
+                grad_cam = grad_cam.reshape(s, t, *grad_cam.shape[1:])[0]
+
+                for index in tqdm.tqdm(wrong_indices):
+                    heatmap = grad_cam[index].detach().cpu().numpy()
+                    heatmap /= numpy.max(heatmap)
+                    heatmap = heatmap.swapaxes(0,1).swapaxes(1, 2)
+                    heatmap = cv2.resize(heatmap, (W, H))
+                    heatmap = numpy.uint8(255 * heatmap)
+                    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                    superimposed_img = heatmap * 0.4 + visualFeatureOriginal[0, 0, index].transpose(0,1).transpose(1, 2).cpu().numpy()
+                    cv2.imwrite(os.path.join(savePath, f"wrong_detecton_frame_{index}.png"), superimposed_img)
+
+                visual = deepcopy(visualFeatureOriginal)
+                audioFeature = audioFeature.cuda()
+                visual = visual.cuda()
+                labels = labels.cuda()
+                masks = masks.cuda()
+                b, s, t = visual.shape[0], visual.shape[1], visual.shape[2]
+                visual = visual.view(b * s, *visual.shape[2:])
+                audio_embed = self.model.forward_audio_frontend(audioFeature)
+                visual_embed = self.model.forward_visual_frontend(visual)
+                audio_embed = audio_embed.repeat(s, 1, 1)
+                audio_embed, visual_embed = self.model.forward_cross_attention(
+                    audio_embed, visual_embed)
+                outs_AV = self.model.forward_audio_visual_backend(audio_embed, visual_embed, b, s)
+                outs_AV = outs_AV.view(b, s, t, -1)[:, 0, :, :].view(b * t, -1)
+                pred_score= self.lossAV.forward(outs_AV, None, None)
+
+                # get the gradient of the output with respect to the parameters of the model
+                loss1 = torch.sum(pred_score[:, 1])
+                loss1.backward()
+
+                # pull the gradients out of the model
+                gradients = self.model.visualFrontend.get_activations_gradient()
+
+                # pool the gradients across the channels
+                pooled_gradients = torch.mean(gradients, dim=[2, 3])
+
+                visualCopy = deepcopy(visualFeatureOriginal)
+
+                # get the activations of the last convolutional layer
+                visualCopy = visualCopy.view(b * s, *visualCopy.shape[2:]).cuda()
+                B, T, W, H = visualCopy.shape
+                visualCopy = visualCopy.view(B * T, 1, 1, W, H)
+                visualCopy = (visualCopy / 255 - 0.4161) / 0.1688
+                activations = self.model.visualFrontend.get_activations(visualCopy).detach()
+                # weight the channels by corresponding gradients
+                for i in range(activations.shape[1]):
+                    for j in range(activations.shape[0]):
+                        activations[j, i, :, :] *= pooled_gradients[j, i]
+
+                grad_cam = torch.mean(activations, dim = 1)
+                grad_cam = torch.nn.functional.relu(grad_cam)
+                grad_cam = grad_cam.reshape(s, t, *grad_cam.shape[1:])[0]
+
+                for index in tqdm.tqdm(wrong_indices):
+                    heatmap = grad_cam[index].detach().cpu().numpy()
+                    heatmap /= numpy.max(heatmap)
+                    heatmap = heatmap.swapaxes(0,1).swapaxes(1, 2)
+                    heatmap = cv2.resize(heatmap, (W, H))
+                    heatmap = numpy.uint8(255 * heatmap)
+                    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                    superimposed_img = heatmap * 0.4 + visualFeatureOriginal[0, 0, index].transpose(0,1).transpose(1, 2).cpu().numpy()
+                    cv2.imwrite(os.path.join(savePath, f"original_detecton_frame_{index}_label_{labels[0, index].item()}.png"), superimposed_img)
+                
+                for index in wrong_indices:
+                    images = [Image.open(x) for x in [os.path.join(savePath, f"original_detecton_frame_{index}_label_{labels[0, index].item()}.png"), os.path.join(savePath, f"wrong_detecton_frame_{index}.png")]]
+                    widths, heights = zip(*(i.size for i in images))
+                    total_width = sum(widths)
+                    max_height = max(heights)
+                    new_im = Image.new('RGB', (total_width, max_height))
+                    x_offset = 0
+                    for im in images:
+                        new_im.paste(im, (x_offset,0))
+                        x_offset += im.size[0]
+                    predicted = 1 if pred_score[index, 1] >= 0 else 0
+
+                    img = numpy.asarray(new_im)
+                    plt.imshow(img)
+                    plt.title(f"Normal vs reverse audio grad-cam frame: {index}. GT: {labels[0, index].item()}, Pred: {predicted}")
+                    plt.savefig(os.path.join(savePath, f"combined_grad_cam_original_{index}_label_{labels[0, index].item()}_predict_{predicted}.png"))
+                    plt.close()
+
+                fp_in = os.path.join(savePath, "combined_*.png")
+                fp_out = os.path.join(savePath, "combine.gif")
+
+                # use exit stack to automatically close opened images
+                with contextlib.ExitStack() as stack:
+
+                    # lazily load images
+                    imgs = (stack.enter_context(Image.open(f))
+                            for f in sorted(glob.glob(fp_in)))
+
+                    # extract  first image from iterator
+                    img = next(imgs)
+
+                    # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
+                    img.save(fp=fp_out, format='GIF', append_images=imgs,
+                            save_all=True, duration=800, loop=0)
+
+            predScores.extend(predScoreNum)
+            break
+        
     def saveParameters(self, path):
         torch.save(self.state_dict(), path)
 

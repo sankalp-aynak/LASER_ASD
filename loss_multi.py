@@ -15,10 +15,7 @@ class lossAV(nn.Module):
         x = x.squeeze(1)
         x = self.FC(x)
         if labels == None:
-            predScore = x[:, 1]
-            predScore = predScore.t()
-            predScore = predScore.view(-1).detach().cpu().numpy()
-            return predScore
+            return x
         else:
             nloss = self.criterion(x, labels) * masks
 

@@ -2,16 +2,25 @@ SEED: "20210617"
 NUM_GPUS: 4
 NUM_WORKERS: 6
 LOG_NAME: 'config.txt'
-OUTPUT_DIR: '/nfs/joltik/data/ssd/xiziwang/TalkNet_models/'  # savePath
+# OUTPUT_DIR: 'talknce_AVA'  # savePath
+# OUTPUT_DIR: '/nobackup/le/LoCoNet'
+OUTPUT_DIR: '/nobackup/le/LoCoNet/landmark'
 evalDataType: "val"
+# evalDataType: "test_mute"
 downloadAVA: False
 evaluation: False
 RESUME: False
-RESUME_PATH: ""
+RESUME_PATH: "weights/loconet_ava_best.model"
+# RESUME_PATH: "weights/talknce_ava_pretrained.model"
 RESUME_EPOCH: 0
+use_consistency: True
+consistency_method: "kl"
+consistency_lambda: 0
+use_landmark: True
+use_talknce: True
 
 DATA:
-    dataPathAVA: '/nfs/jolteon/data/ssd/xiziwang/AVA_dataset/'
+    dataPathAVA: '/nobackup/le/LoCoNet/AVA_Dataset'
 
 DATALOADER:
     nDataLoaderThread: 4
@@ -30,6 +39,9 @@ MODEL:
     AV: "speaker_temporal"
     AV_layers: 3
     ADJUST_ATTENTION: 0
+
+n_channel: 1
+layer: 1
 
 TRAIN:
     BATCH_SIZE: 1
