@@ -37,11 +37,11 @@ channel 4 layer 1 method mse lambda 1    waiv4      done
 
 channel 4 layer 2 method kl  lambda 0.2  waiv4       done
 channel 4 layer 1 method kl  lambda 0.4  instgpu-02  done
-channel 4 layer 2 method kl  lambda 0.6  instgpu-02 
+channel 4 layer 2 method kl  lambda 0.6  instgpu-02  done
 channel 4 layer 2 method kl  lambda 0.8  instgpu-01  done
 channel 4 layer 2 method kl  lambda 1    instgpu-01  done
 channel 4 layer 2 method mse lambda 0.2  instgpu-03  done
-channel 4 layer 2 method mse lambda 0.4  instgpu-03  
+channel 4 layer 2 method mse lambda 0.4  instgpu-03  done
 channel 4 layer 2 method mse lambda 0.6  instgpu-04  done
 channel 4 layer 2 method mse lambda 0.8  instgpu-04 done
 channel 4 layer 2 method mse lambda 1    waiv4     cancel
@@ -49,6 +49,16 @@ channel 4 layer 2 method mse lambda 1    waiv4     cancel
 channel 4 3D CNN instpu-05
 channel 2 3D CNN 
 
-loconet channel 4 layer 1 kl lambda 0.2 waiv4
+loconet channel 4 layer 1 kl lambda 0.2     waiv4    done 
+loconet channel 4 layer 1 kl lambda 0.6     instgpu1
+loconet channel 4 layer 1 kl lambda 0.4     instgpu3
+loconet channel 4 layer 1 kl lambda 0.8     instgpu4
+loconet channel 4 layer 1 kl lambda 1       instgpu4
+channel 4 layer 1 method kl  lambda 1 dual  instgpu2 
+channel 4 layer 1 method kl  lambda 1       waiv4    retrain
+channel 4 layer 1 method mse lambda 0.2     instgpu2 retrain
+channel 4 layer 1 method mse lambda 0.4     instgpu3 retrain
+channel 4 layer 1 method mse lambda 0.6     instgpu1 retrain
+
 
 

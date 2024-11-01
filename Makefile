@@ -305,7 +305,7 @@ train_landmark_channel_4_layer_1_kl_0.8:
 	CUDA_VISIBLE_DEVICES=0,1,2,3 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 1 consistency_method kl consistency_lambda 0.8
 
 train_landmark_channel_4_layer_1_kl_1:
-	CUDA_VISIBLE_DEVICES=4,5,6,7 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 1 consistency_method kl consistency_lambda 1
+	CUDA_VISIBLE_DEVICES=0,1,2,3 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 1 consistency_method kl consistency_lambda 1
 
 train_landmark_channel_4_layer_1_mse_0.2:
 	CUDA_VISIBLE_DEVICES=0,1,2,3 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 1 consistency_method mse consistency_lambda 0.2
@@ -321,6 +321,13 @@ train_landmark_channel_4_layer_1_mse_0.8:
 
 train_landmark_channel_4_layer_1_mse_1:
 	CUDA_VISIBLE_DEVICES=0,1,2,3 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 1 consistency_method mse consistency_lambda 1
+
+##################################################################################################################################################
+
+train_landmark_dual_channel_4_layer_1_kl_1:
+	CUDA_VISIBLE_DEVICES=4,5,6,7 python -W ignore::UserWarning train_landmark_loconet_dual.py --cfg configs/multi.yaml n_channel 4 layer 1 consistency_method kl consistency_lambda 1
+
+##################################################################################################################################################
 
 train_landmark_channel_4_layer_2_kl_0.2:
 	CUDA_VISIBLE_DEVICES=0,1,2,3 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 2 consistency_method kl consistency_lambda 0.2
@@ -351,6 +358,38 @@ train_landmark_channel_4_layer_2_mse_0.8:
 
 train_landmark_channel_4_layer_2_mse_1:
 	CUDA_VISIBLE_DEVICES=0,1,2,3 python -W ignore::UserWarning train_landmark_loconet.py --cfg configs/multi.yaml n_channel 4 layer 2 consistency_method mse consistency_lambda 1
+
+##############################################################################################################################
+
+eval_loconet_4_1_kl_0.2_landmark:
+	python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark True use_talknce False
+
+eval_loconet_4_1_kl_0.2_no_landmark:
+	python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark False use_talknce False
+
+eval_loconet_4_1_kl_0.4_landmark:
+	CUDA_VISIBLE_DEVICES=0 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.4 use_landmark True use_talknce False
+
+eval_loconet_4_1_kl_0.4_no_landmark:
+	CUDA_VISIBLE_DEVICES=1 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.4 use_landmark False use_talknce False
+
+eval_loconet_4_1_kl_0.6_landmark:
+	CUDA_VISIBLE_DEVICES=2 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.6 use_landmark True use_talknce False
+
+eval_loconet_4_1_kl_0.6_no_landmark:
+	CUDA_VISIBLE_DEVICES=3 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.6 use_landmark False use_talknce False
+
+eval_loconet_4_1_kl_0.8_landmark:
+	python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.8 use_landmark True use_talknce False
+
+eval_loconet_4_1_kl_0.8_no_landmark:
+	python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.8 use_landmark False use_talknce False
+
+eval_loconet_4_1_kl_1_landmark:
+	CUDA_VISIBLE_DEVICES=4 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 1 use_landmark True use_talknce False
+
+eval_loconet_4_1_kl_1_no_landmark:
+	CUDA_VISIBLE_DEVICES=5 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 1 use_landmark False use_talknce False
 
 eval_landmark_4_1_kl_0.2_landmark:
 	python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark True
@@ -425,10 +464,10 @@ eval_landmark_4_2_kl_0.4_no_landmark:
 	CUDA_VISIBLE_DEVICES=1 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method kl consistency_lambda 0.4 use_landmark False
 
 eval_landmark_4_2_kl_0.6_landmark:
-	CUDA_VISIBLE_DEVICES=2 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method kl consistency_lambda 0.6 use_landmark True
+	CUDA_VISIBLE_DEVICES=4 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method kl consistency_lambda 0.6 use_landmark True
 
 eval_landmark_4_2_kl_0.6_no_landmark:
-	CUDA_VISIBLE_DEVICES=3 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method kl consistency_lambda 0.6 use_landmark False
+	CUDA_VISIBLE_DEVICES=5 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method kl consistency_lambda 0.6 use_landmark False
 
 eval_landmark_4_2_kl_0.8_landmark:
 	CUDA_VISIBLE_DEVICES=0 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method kl consistency_lambda 0.8 use_landmark True
@@ -449,10 +488,10 @@ eval_landmark_4_2_mse_0.2_no_landmark:
 	CUDA_VISIBLE_DEVICES=1 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 0.2 use_landmark False
 
 eval_landmark_4_2_mse_0.4_landmark:
-	CUDA_VISIBLE_DEVICES=2 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 0.4 use_landmark True
+	CUDA_VISIBLE_DEVICES=4 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 0.4 use_landmark True
 
 eval_landmark_4_2_mse_0.4_no_landmark:
-	CUDA_VISIBLE_DEVICES=3 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 0.4 use_landmark False
+	CUDA_VISIBLE_DEVICES=5 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 0.4 use_landmark False
 
 eval_landmark_4_2_mse_0.6_landmark:
 	CUDA_VISIBLE_DEVICES=0 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 0.6 use_landmark True
@@ -471,6 +510,16 @@ eval_landmark_4_2_mse_1_landmark:
 
 eval_landmark_4_2_mse_1_no_landmark:
 	CUDA_VISIBLE_DEVICES=1 python -W ignore::UserWarning test_multicard_landmark.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 2 consistency_method mse consistency_lambda 1 use_landmark False
+
+###################################################################################################
+
+test_reverse_loconet_channel_4_layer_1_kl_0.2_landmark:
+	CUDA_VISIBLE_DEVICES=1 python -W ignore::UserWarning test_landmark_loconet.py --cfg configs/multi.yaml evalDataType test_reverse n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark True use_talknce False
+
+test_reverse_loconet_channel_4_layer_1_kl_0.2_no_landmark:
+	CUDA_VISIBLE_DEVICES=2 python -W ignore::UserWarning test_landmark_loconet.py --cfg configs/multi.yaml evalDataType test_reverse n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark False use_talknce False
+  
+###################################################################################################
 
 test_reverse_landmark_channel_4_layer_1_kl_0.2_landmark:
 	CUDA_VISIBLE_DEVICES=1 python -W ignore::UserWarning test_landmark_loconet.py --cfg configs/multi.yaml evalDataType test_reverse n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark True
@@ -591,6 +640,15 @@ test_reverse_landmark_channel_4_layer_2_mse_1_landmark:
 
 test_reverse_landmark_channel_4_layer_2_mse_1_no_landmark:
 	CUDA_VISIBLE_DEVICES=3 python -W ignore::UserWarning test_landmark_loconet.py --cfg configs/multi.yaml evalDataType test_reverse n_channel 4 layer 2 consistency_method mse consistency_lambda 1 use_landmark False
+
+##################################################
+
+compare_reverse_loconet_channel_4_layer_1_kl_0.2_landmark:
+	python utils/get_ava_active_speaker_performance_no_map.py -g /nobackup/le/LoCoNet/AVA_Dataset/csv/val_orig_modified.csv -p /nobackup/le/LoCoNet/landmark/0_res_reverse_4_1_kl_0.2_True_talknce:False.csv
+
+compare_reverse_loconet_channel_4_layer_1_kl_0.2_no_landmark:
+	python utils/get_ava_active_speaker_performance_no_map.py -g /nobackup/le/LoCoNet/AVA_Dataset/csv/val_orig_modified.csv -p /nobackup/le/LoCoNet/landmark/0_res_reverse_4_1_kl_0.2_False_talknce:False.csv
+
 
 # test_val_landmark_channel_4_layer_1_kl_0.2_landmark:
 # 	python -W ignore::UserWarning test_landmark_loconet.py --cfg configs/multi.yaml evalDataType val n_channel 4 layer 1 consistency_method kl consistency_lambda 0.2 use_landmark True

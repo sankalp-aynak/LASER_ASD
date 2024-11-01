@@ -93,7 +93,10 @@ def main():
     if not cfg.use_consistency:
         weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
     else:
-        weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-1]
+        if cfg.use_talknce:
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-1]
+        else:
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-1]
     s.loadParameters(weight_path)
     print(cfg.use_landmark)
     mAP = s.evaluate_network(epoch=epoch, loader=data.val_dataloader(), useLandmark = cfg.use_landmark)

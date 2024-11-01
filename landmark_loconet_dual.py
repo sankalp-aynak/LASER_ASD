@@ -21,6 +21,7 @@ from PIL import Image
 import math
 from typing import List, Mapping, Optional, Tuple, Union
 import numpy as np
+torch.autograd.set_detect_anomaly(True)
 
 
 class Loconet(nn.Module):
@@ -218,30 +219,10 @@ class Loconet(nn.Module):
         nlossA = self.lossA.forward(outsA, labels, masks)
         nlossV = self.lossV.forward(outsV, labels, masks)
 
-        consistency_loss = 0
-        if self.consistency_lambda > 0.0:
-            audioEmbed = self.model.forward_audio_frontend(audioFeatureOriginal)    # B, C, T, 4
-            visualEmbed = self.forward_visual_frontend(visualFeatureOriginal, torch.zeros_like(landmarkFeature))
-            audioEmbed = audioEmbed.repeat(s, 1, 1)
-            audioEmbed, visualEmbed = self.model.forward_cross_attention(audioEmbed, visualEmbed)
-            outsAVNonLandmark = self.model.forward_audio_visual_backend(audioEmbed, visualEmbed, b, s)
-
-            if self.consistency_method == "mse":
-                consistency_loss = self.consistency_lambda * self.mse_loss(outsAVNonLandmark, outsAV)
-            else:
-                labels = labels.reshape((-1))
-                masks = masks.reshape((-1))
-                _, predScoresNonLandmark, _, _ = self.lossAV.forward(outsAVNonLandmark, labels, masks)
-                consistency_loss = self.consistency_lambda * self.kl_loss(predScoresNonLandmark.log(), predScoresLandmark.detach())
-                assert consistency_loss >= 0.0
-                
-            
-            # print(consistency_loss)
-
-        nloss = nlossAV + 0.4 * nlossA + 0.4 * nlossV + 0.3*nce_loss + consistency_loss
+        nloss = nlossAV + 0.4 * nlossA + 0.4 * nlossV + 0.3*nce_loss
 
         num_frames = masks.sum()
-        return nloss, prec, num_frames
+        return nloss, prec, num_frames, outsAV, predScoresLandmark
 
     def forward_evaluation(self, audioFeature, visualFeature, landmark, labels, masks, useLandmark = True):
         b, s, t = visualFeature.shape[:3]
@@ -285,33 +266,52 @@ class loconet(nn.Module):
             self.device = device
             self.n_channel = n_channel
             self.layer = layer
-            self.model = Loconet(cfg, n_channel, layer, consistency_lambda, consistency_method).to(device)
-            self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
-            self.model = nn.parallel.DistributedDataParallel(self.model,
+            self.model_landmark = Loconet(cfg, n_channel, layer, consistency_lambda, consistency_method).to(device)
+            self.model_visual = Loconet(cfg, n_channel, layer, consistency_lambda, consistency_method).to(device)
+            self.model_landmark = nn.SyncBatchNorm.convert_sync_batchnorm(self.model_landmark)
+            self.model_landmark = nn.parallel.DistributedDataParallel(self.model_landmark,
                                                              device_ids=[rank],
                                                              output_device=rank,
                                                              find_unused_parameters=False)
-            self.optim = torch.optim.Adam(self.model.parameters(), lr=self.cfg.SOLVER.BASE_LR)
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optim,
+            self.model_visual = nn.SyncBatchNorm.convert_sync_batchnorm(self.model_visual)
+            self.model_visual = nn.parallel.DistributedDataParallel(self.model_visual,
+                                                             device_ids=[rank],
+                                                             output_device=rank,
+                                                             find_unused_parameters=False)
+            self.optim_landmark = torch.optim.Adam(self.model_landmark.parameters(), lr=self.cfg.SOLVER.BASE_LR)
+            self.optim_visual = torch.optim.Adam(self.model_visual.parameters(), lr=self.cfg.SOLVER.BASE_LR)
+            self.scheduler_landmark = torch.optim.lr_scheduler.StepLR(self.optim_landmark,
                                                              step_size=1,
                                                              gamma=self.cfg.SOLVER.SCHEDULER.GAMMA)
+            self.scheduler_visual = torch.optim.lr_scheduler.StepLR(self.optim_visual,
+                                                             step_size=1,
+                                                             gamma=self.cfg.SOLVER.SCHEDULER.GAMMA)
+            self.method = consistency_method
+            self.consistency_lambda = consistency_lambda
         else:
             self.n_channel = n_channel
             self.layer = layer
-            self.model = Loconet(cfg, n_channel, layer).cuda()
+            self.model_landmark = Loconet(cfg, n_channel, layer).cuda()
+            self.model_visual = Loconet(cfg, n_channel, layer).cuda()
             self.evalDataType = cfg.evalDataType
             self.method = consistency_method
             self.consistency_lambda = consistency_lambda
 
         print(
-            time.strftime("%m-%d %H:%M:%S") + " Model para number = %.2f" %
-            (sum(param.numel() for param in self.model.parameters()) / 1024 / 1024))
+            time.strftime("%m-%d %H:%M:%S") + " Model landmark para number = %.2f" %
+            (sum(param.numel() for param in self.model_landmark.parameters()) / 1024 / 1024))
+        
+        print(
+            time.strftime("%m-%d %H:%M:%S") + " Model visual para number = %.2f" %
+            (sum(param.numel() for param in self.model_visual.parameters()) / 1024 / 1024))
 
     def train_network(self, epoch, loader):
-        self.model.train()
-        self.scheduler.step(epoch - 1)
+        self.model_landmark.train()
+        self.model_visual.train()
+        self.scheduler_landmark.step(epoch - 1)
+        self.scheduler_visual.step(epoch - 1)
         index, top1, loss = 0, 0, 0
-        lr = self.optim.param_groups[0]['lr']
+        lr = self.optim_landmark.param_groups[0]['lr']
         loader.sampler.set_epoch(epoch)
         device = self.device
 
@@ -325,19 +325,40 @@ class loconet(nn.Module):
             labels = labels.to(device)
             masks = masks.to(device)
             landmarks = landmarks.to(device) # b, s, t, 82, 2
-            nloss, prec, num_frames = self.model(
+            nloss_landmark, prec, num_frames, feat_landmark, predscore_landmark = self.model_landmark(
+                audioFeature.clone(),
+                visualFeature.clone(),
+                landmarks.clone(),
+                labels.clone(),
+                masks.clone(),
+            )
+
+            nloss_visual, prec, num_frames, feat_visual, predscore_visual = self.model_visual(
                 audioFeature,
                 visualFeature,
-                landmarks,
+                torch.zeros_like(landmarks),
                 labels,
                 masks,
             )
 
-            self.optim.zero_grad()
-            nloss.backward()
-            self.optim.step()
+            self.optim_landmark.zero_grad()
+            nloss_landmark.backward()
+            self.optim_landmark.step()
 
-            [nloss, prec, num_frames] = all_reduce([nloss, prec, num_frames], average=False)
+            consistency_loss = 0
+            if self.cfg.use_consistency:
+                if self.method == "mse":
+                    consistency_loss = self.consistency_lambda * torch.nn.functional.mse_loss(feat_visual, feat_landmark.detach())
+                else:
+                    consistency_loss = self.consistency_lambda * torch.nn.functional.kl_div(predscore_visual.log(), predscore_landmark.detach(), reduction='batchmean')
+                    assert consistency_loss >= 0.0
+
+            self.optim_visual.zero_grad()
+            nloss_visual = nloss_visual + consistency_loss
+            nloss_visual.backward()
+            self.optim_visual.step()
+
+            [nloss, prec, num_frames] = all_reduce([nloss_visual + nloss_landmark, prec, num_frames], average=False)
             top1 += prec.detach().cpu().numpy()
             loss += nloss.detach().cpu().numpy()
             index += int(num_frames.detach().cpu().item())
@@ -385,7 +406,7 @@ class loconet(nn.Module):
     def evaluate(self, epoch, loader, useLandmark = True):
         self.eval()
         predScores = []
-        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_{}_talknce:{}.csv".format(epoch, "reverse" if self.cfg.evalDataType == "test_reverse" else "val", self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark, self.cfg.use_talknce))
+        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_{}.csv".format(epoch, "reverse" if self.cfg.evalDataType == "test_reverse" else "val", self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark))
         evalOrig = self.cfg.evalOrig
         for audioFeature, visualFeature, landmarks, labels, masks in tqdm.tqdm(loader):
             with torch.no_grad():

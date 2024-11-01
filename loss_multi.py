@@ -12,20 +12,20 @@ class lossAV(nn.Module):
         self.FC = nn.Linear(256, 2)
 
     def forward(self, x, labels=None, masks=None):
-        x = x.squeeze(1)
-        x = self.FC(x)
+        out = x.squeeze(1)
+        out = self.FC(out)
         if labels == None:
             return x
         else:
-            nloss = self.criterion(x, labels) * masks
+            nloss = self.criterion(out, labels) * masks
 
             num_valid = masks.sum().float()
             if self.training:
                 [num_valid] = du.all_reduce([num_valid],average=True)
             nloss = torch.sum(nloss) / num_valid
 
-            predScore = F.softmax(x, dim=-1)
-            predLabel = torch.round(F.softmax(x, dim=-1))[:, 1]
+            predScore = F.softmax(out, dim=-1)
+            predLabel = torch.round(F.softmax(out, dim=-1))[:, 1]
             correctNum = ((predLabel == labels) * masks).sum().float()
             return nloss, predScore, predLabel, correctNum
 
