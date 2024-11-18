@@ -1,3 +1,7 @@
 weights/*
 
 wandb/*
+
+tracking.txt
+
+Makefile

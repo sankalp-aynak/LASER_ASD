@@ -205,10 +205,20 @@ class train_loader(object):
         target_video = self.mixLst[index]
         data = target_video.split('\t')
         fps = float(data[2])
-        videoName = data[0][:11]
+        if not self.cfg.use_talkies:
+            videoName = data[0][:11]
+        else:
+            for i in range(len(data[0]) - 1, -1, -1):
+                if data[0][i] == ':':
+                    videoName = data[0][:i]
+                    break
         target_entity = data[0]
         all_ts = list(self.entity_data[videoName][target_entity].keys())
         numFrames = int(data[1])
+        if(numFrames != len(all_ts)):
+            print(target_entity)
+            print(numFrames)
+            print(len(all_ts))
         assert numFrames == len(all_ts)
 
         center_ts = all_ts[math.floor(numFrames / 2)]
@@ -222,9 +232,30 @@ class train_loader(object):
             augment_entity = self.mixLst[random.choice(other_indices)]
             augment_data = augment_entity.split('\t')
             augment_entity = augment_data[0]
-            augment_videoname = augment_data[0][:11]
+            if not self.cfg.use_talkies:
+                augment_videoname = augment_data[0][:11]
+            else:
+                for i in range(len(augment_data[0]) - 1, -1, -1):
+                    if augment_data[0][i] == ':':
+                        augment_videoname = augment_data[0][:i]
+                        break
             aug_sr, aug_audio = wavfile.read(
                 os.path.join(self.audioPath, augment_videoname, augment_entity + '.wav'))
+            while len(aug_audio) == 0:
+                other_indices = list(range(0, index)) + list(range(index + 1, self.list_length))
+                augment_entity = self.mixLst[random.choice(other_indices)]
+                augment_data = augment_entity.split('\t')
+                augment_entity = augment_data[0]
+                if not self.cfg.use_talkies:
+                    augment_videoname = augment_data[0][:11]
+                else:
+                    for i in range(len(augment_data[0]) - 1, -1, -1):
+                        if augment_data[0][i] == ':':
+                            augment_videoname = augment_data[0][:i]
+                            break
+                aug_sr, aug_audio = wavfile.read(
+                    os.path.join(self.audioPath, augment_videoname, augment_entity + '.wav'))
+
         else:
             aug_audio = None
 
@@ -351,11 +382,18 @@ class val_loader(object):
         target_video = self.mixLst[index]
         data = target_video.split('\t')
         fps = float(data[2])
-        videoName = data[0][:11]
+        if not self.cfg.use_talkies:
+            videoName = data[0][:11]
+        else:
+            for i in range(len(data[0]) - 1, -1, -1):
+                if data[0][i] == ':':
+                    videoName = data[0][:i]
+                    break
         target_entity = data[0]
         all_ts = list(self.entity_data[videoName][target_entity].keys())
         numFrames = int(data[1])
-        # print(numFrames, len(all_ts))
+        # if self.cfg.use_talkies:
+        #     numFrames = min(numFrames, len(all_ts))
         assert numFrames == len(all_ts)
 
         center_ts = all_ts[math.floor(numFrames / 2)]
@@ -394,6 +432,7 @@ class val_loader(object):
             print(visualFeatures.shape, audio.shape, videoName, target_entity, numFrames)
         labels = torch.LongTensor(numpy.array(labels))
         masks = torch.LongTensor(numpy.array(masks))
+        assert visualFeatures.shape[1] == numFrames
 
         return audio, visualFeatures, labels, masks
 

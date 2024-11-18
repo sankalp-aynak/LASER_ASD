@@ -14,10 +14,14 @@ RESUME_PATH: "weights/loconet_ava_best.model"
 # RESUME_PATH: "weights/talknce_ava_pretrained.model"
 RESUME_EPOCH: 0
 use_consistency: True
+use_full_landmark: False
 consistency_method: "kl"
 consistency_lambda: 0
 use_landmark: True
 use_talknce: True
+only_landmark: False
+shift_factor: 0
+use_talkies: False
 
 DATA:
     dataPathAVA: '/nobackup/le/LoCoNet/AVA_Dataset'

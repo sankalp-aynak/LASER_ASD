@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 import shutil
 import cv2
 import imageio
+
+import numpy as np
 from PIL import Image
 
 
@@ -28,6 +30,31 @@ class Loconet(nn.Module):
         self.lossAV = lossAV()
         self.lossA = lossA()
         self.lossV = lossV()
+        self.criterion = nn.CrossEntropyLoss()
+
+    def info_nce_loss1(self, features_vis, features_aud, labels):
+        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float() #[T, T]
+        labels = labels.to('cuda')
+
+        features_vis = F.normalize(features_vis, dim=1) #[T,128]
+        features_aud = F.normalize(features_aud, dim=1) #[T,128]
+
+        similarity_matrix = torch.matmul(features_vis, features_aud.T) # [T,T]
+
+        # discard the main diagonal from both: labels and similarities matrix
+        mask = torch.eye(labels.shape[0], dtype=torch.bool).to('cuda')
+
+        # select and combine multiple positives
+        positives = similarity_matrix[mask].view(labels.shape[0], -1)
+
+        # select only the negatives the negatives
+        negatives = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
+
+        logits = torch.cat([positives, negatives], dim=1)
+        labels = torch.zeros(logits.shape[0], dtype=torch.long).to('cuda')
+
+        logits = logits / 0.07
+        return logits, labels
 
     def forward(self, audioFeature, visualFeature, labels, masks):
         b, s, t = visualFeature.shape[:3]
@@ -38,6 +65,23 @@ class Loconet(nn.Module):
         audioEmbed = self.model.forward_audio_frontend(audioFeature)    # B, C, T, 4
         visualEmbed = self.model.forward_visual_frontend(visualFeature)
         audioEmbed = audioEmbed.repeat(s, 1, 1)
+
+        nce_loss = 0
+        if self.cfg.use_talknce:
+            new_labels = labels[0].reshape((-1))
+            tri_vis = visualEmbed[0].reshape(-1,128)
+            tri_aud = audioEmbed[0].reshape(-1,128) #[T*128]
+
+            active_index = np.where(new_labels.cpu()==1) # get active segments
+            if len(active_index[0]) > 0:
+                tri_vis2 = torch.stack([tri_vis[i,:] for i in active_index[0]], dim=0)
+                tri_aud2 = torch.stack([tri_aud[j,:] for j in active_index[0]], dim=0)
+                nce_label = torch.ones_like(torch.Tensor(active_index[0])).to('cuda')
+
+                logits, labels_nce = self.info_nce_loss1(tri_vis2, tri_aud2, nce_label)
+                nce_loss = self.criterion(logits, labels_nce) #input, target
+            else:
+                nce_loss=0
 
         audioEmbed, visualEmbed = self.model.forward_cross_attention(audioEmbed, visualEmbed)
         outsAV = self.model.forward_audio_visual_backend(audioEmbed, visualEmbed, b, s)
@@ -50,7 +94,7 @@ class Loconet(nn.Module):
         nlossA = self.lossA.forward(outsA, labels, masks)
         nlossV = self.lossV.forward(outsV, labels, masks)
 
-        nloss = nlossAV + 0.4 * nlossA + 0.4 * nlossV
+        nloss = nlossAV + 0.4 * nlossA + 0.4 * nlossV + 0.3 * nce_loss
 
         num_frames = masks.sum()
         return nloss, prec, num_frames
@@ -132,7 +176,7 @@ class loconet(nn.Module):
     def evaluate_network(self, epoch, loader):
         self.eval()
         predScores = []
-        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res.csv".format(epoch))
+        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_shifted_{}.csv".format(epoch, self.cfg.shift_factor))
         evalOrig = self.cfg.evalOrig
         for audioFeature, visualFeature, labels, masks in tqdm.tqdm(loader):
             with torch.no_grad():
@@ -157,8 +201,13 @@ class loconet(nn.Module):
                 masks = masks.view(b, s, t)[:, 0, :].view(b * t)
                 _, predScore, _, _ = self.lossAV.forward(outsAV, labels, masks)
                 predScore = predScore[:, 1].detach().cpu().numpy()
+                assert predScore.shape[0] == t
+                x = len(predScores)
                 predScores.extend(predScore)
+                assert(len(predScores) == x + t)
         evalLines = open(evalOrig).read().splitlines()[1:]
+        print(len(predScores), len(evalLines))
+        assert (len(predScores) == len(evalLines))
         labels = []
         labels = pandas.Series(['SPEAKING_AUDIBLE' for line in evalLines])
         scores = pandas.Series(predScores)
@@ -177,7 +226,7 @@ class loconet(nn.Module):
     def evaluate(self, epoch, loader):
         self.eval()
         predScores = []
-        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res.csv".format(epoch))
+        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_shifted_{}.csv".format(epoch, self.cfg.shift_factor))
         evalOrig = self.cfg.evalOrig
         for audioFeature, visualFeature, labels, masks in tqdm.tqdm(loader):
             with torch.no_grad():
@@ -223,7 +272,8 @@ class loconet(nn.Module):
         os.makedirs(savePath)
         cnt = 0
         for id, (audioFeature, audioReverseFeature, visualFeature, labels, masks) in tqdm.tqdm(enumerate(loader)):
-            print(torch.sum(audioFeature == audioReverseFeature))
+            if id < 1:
+                continue
 
             visualFeatureOriginal = deepcopy(visualFeature)
             
@@ -245,6 +295,8 @@ class loconet(nn.Module):
             predScore= self.lossAV.forward(outsAV, None, None)
             predScoreNum = predScore[:, 1].detach().cpu().numpy()
             wrong_indices = numpy.argwhere(predScoreNum >= 0)
+
+            print(wrong_indices)
             
             if wrong_indices.size != 0:
                 
@@ -373,7 +425,7 @@ class loconet(nn.Module):
                     # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
                     img.save(fp=fp_out, format='GIF', append_images=imgs,
                             save_all=True, duration=800, loop=0)
-
+            
             predScores.extend(predScoreNum)
             break
         

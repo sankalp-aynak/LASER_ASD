@@ -109,11 +109,17 @@ class train_loader(object):
         self.visualPath = visualPath
         self.candidate_speakers = num_speakers
         self.path = os.path.join(cfg.DATA.dataPathAVA, "csv")
-        self.landmark_path = os.path.join(self.path, 'landmark', 'train')
+        if cfg.use_full_landmark:
+            self.landmark_path = os.path.join(self.path, 'landmark_full', 'train')
+            print("use full landmark")
+        else:
+            self.landmark_path = os.path.join(self.path, 'landmark', 'train')
+            print("no use full landmark")
         self.entity_data = json.load(open(os.path.join(self.path, 'train_entity.json')))
         self.ts_to_entity = json.load(open(os.path.join(self.path, 'train_ts.json')))
         self.mixLst = open(trialFileName).read().splitlines()
         self.list_length = len(self.mixLst)
+        # print(len(self.mixLst))
         random.shuffle(self.mixLst)
 
     def load_single_audio(self, audio, fps, numFrames, audioAug=False, aug_audio=None):
@@ -215,7 +221,13 @@ class train_loader(object):
         target_video = self.mixLst[index]
         data = target_video.split('\t')
         fps = float(data[2])
-        videoName = data[0][:11]
+        if not self.cfg.use_talkies:
+            videoName = data[0][:11]
+        else:
+            for i in range(len(data[0]) - 1, -1, -1):
+                if data[0][i] == ':':
+                    videoName = data[0][:i]
+                    break
         target_entity = data[0]
         all_ts = list(self.entity_data[videoName][target_entity].keys())
         numFrames = int(data[1])
@@ -232,9 +244,30 @@ class train_loader(object):
             augment_entity = self.mixLst[random.choice(other_indices)]
             augment_data = augment_entity.split('\t')
             augment_entity = augment_data[0]
-            augment_videoname = augment_data[0][:11]
+            if not self.cfg.use_talkies:
+                augment_videoname = augment_data[0][:11]
+            else:
+                for i in range(len(augment_data[0]) - 1, -1, -1):
+                    if augment_data[0][i] == ':':
+                        augment_videoname = augment_data[0][:i]
+                        break
             aug_sr, aug_audio = wavfile.read(
                 os.path.join(self.audioPath, augment_videoname, augment_entity + '.wav'))
+            while len(aug_audio) == 0:
+                other_indices = list(range(0, index)) + list(range(index + 1, self.list_length))
+                augment_entity = self.mixLst[random.choice(other_indices)]
+                augment_data = augment_entity.split('\t')
+                augment_entity = augment_data[0]
+                if not self.cfg.use_talkies:
+                    augment_videoname = augment_data[0][:11]
+                else:
+                    for i in range(len(augment_data[0]) - 1, -1, -1):
+                        if augment_data[0][i] == ':':
+                            augment_videoname = augment_data[0][:i]
+                            break
+                aug_sr, aug_audio = wavfile.read(
+                    os.path.join(self.audioPath, augment_videoname, augment_entity + '.wav'))
+
         else:
             aug_audio = None
 
@@ -293,7 +326,12 @@ class val_loader(object):
         self.visualPath = visualPath
         self.candidate_speakers = num_speakers
         self.path = os.path.join(cfg.DATA.dataPathAVA, "csv")
-        self.landmark_path = os.path.join(self.path, 'landmark', 'val')
+        if cfg.use_full_landmark:
+            self.landmark_path = os.path.join(self.path, 'landmark_full', 'val')
+            # print("use full landmark")
+        else:
+            self.landmark_path = os.path.join(self.path, 'landmark', 'val')
+            # print("no use full landmark")
         self.entity_data = json.load(open(os.path.join(self.path, 'val_entity.json')))
         self.ts_to_entity = json.load(open(os.path.join(self.path, 'val_ts.json')))
         self.mixLst = open(trialFileName).read().splitlines()
@@ -377,7 +415,13 @@ class val_loader(object):
         target_video = self.mixLst[index]
         data = target_video.split('\t')
         fps = float(data[2])
-        videoName = data[0][:11]
+        if not self.cfg.use_talkies:
+            videoName = data[0][:11]
+        else:
+            for i in range(len(data[0]) - 1, -1, -1):
+                if data[0][i] == ':':
+                    videoName = data[0][:i]
+                    break   
         target_entity = data[0]
         all_ts = list(self.entity_data[videoName][target_entity].keys())
         numFrames = int(data[1])
@@ -438,6 +482,12 @@ class val_loader_with_reverse(object):
         self.audioReversePath = audioReversePath
         self.candidate_speakers = num_speakers
         self.path = os.path.join(cfg.DATA.dataPathAVA, "csv")
+        if cfg.use_full_landmark:
+            self.landmark_path = os.path.join(self.path, 'landmark_full', 'val')
+            # print("use full landmark")
+        else:
+            self.landmark_path = os.path.join(self.path, 'landmark', 'val')
+            # print("no use full landmark")
         self.entity_data = json.load(open(os.path.join(self.path, 'val_entity.json')))
         self.ts_to_entity = json.load(open(os.path.join(self.path, 'val_ts.json')))
         self.mixLst = open(trialFileName).read().splitlines()

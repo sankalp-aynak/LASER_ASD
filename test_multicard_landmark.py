@@ -14,9 +14,15 @@ class DataPrep():
 
     def val_dataloader(self):
         cfg = self.cfg
+        audioPath = os.path.join(cfg.audioPathAVA_reverse , cfg.evalDataType) if cfg.evalDataType == "test_reverse" else \
+                                os.path.join(cfg.audioPathAVA , cfg.evalDataType)
+        if cfg.evalDataType == "test_mute":
+            audioPath = os.path.join(cfg.audioPathAVA_mute, cfg.evalDataType)
+        if cfg.evalDataType == "test_shift":
+            audioPath = os.path.join(cfg.audioPathAVA_shifted, cfg.evalDataType) 
         loader = val_loader(cfg, trialFileName = cfg.evalTrialAVA, \
-                            audioPath     = os.path.join(cfg.audioPathAVA , cfg.evalDataType), \
-                            visualPath    = os.path.join(cfg.visualPathAVA, cfg.evalDataType), \
+                            audioPath     = audioPath, \
+                            visualPath    = os.path.join(cfg.visualPathAVA, "val"), \
                             num_speakers=cfg.MODEL.NUM_SPEAKERS,
                             )
         valLoader = torch.utils.data.DataLoader(loader,
@@ -30,12 +36,18 @@ def prepare_context_files(cfg):
     path = os.path.join(cfg.DATA.dataPathAVA, "csv")
     for phase in ["val"]:
         csv_f = f"{phase}_loader.csv"
-        csv_orig = f"{phase}_orig.csv"
+        if cfg.evalDataType == "val":
+            csv_orig = f"{phase}_orig.csv"
+        elif cfg.evalDataType == "test_shift":
+            csv_orig = f"{phase}_orig_shifted_{cfg.shift_factor}.csv"
+        else:
+            csv_orig = f"{phase}_orig_modified.csv"
+        print(csv_orig)
         entity_f = os.path.join(path, phase + "_entity.json")
         ts_f = os.path.join(path, phase + "_ts.json")
-        if os.path.exists(entity_f) and os.path.exists(ts_f):
-            # print("ok")
-            continue
+        # if os.path.exists(entity_f) and os.path.exists(ts_f):
+        #     # print("ok")
+        #     continue
         orig_df = pandas.read_csv(os.path.join(path, csv_orig))
         entity_data = {}
         ts_to_entity = {}
@@ -91,12 +103,18 @@ def main():
     s = loconet(cfg, cfg.n_channel, cfg.layer, consistency_method=cfg.consistency_method, consistency_lambda=cfg.consistency_lambda)
 
     if not cfg.use_consistency:
-        weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
+        if cfg.use_full_landmark:
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark/*'))[-1]
+            if cfg.only_landmark:
+                weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark_only_landmark/*'))[-1]
+        else:
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
     else:
         if cfg.use_talknce:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-1]
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-7]
         else:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-1]
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-5]
+    print(f"evaluate ckpt: {weight_path}")
     s.loadParameters(weight_path)
     print(cfg.use_landmark)
     mAP = s.evaluate_network(epoch=epoch, loader=data.val_dataloader(), useLandmark = cfg.use_landmark)

@@ -18,6 +18,8 @@ class DataPrep():
                                 os.path.join(cfg.audioPathAVA , cfg.evalDataType)
         if cfg.evalDataType == "test_mute":
             audioPath = os.path.join(cfg.audioPathAVA_mute, cfg.evalDataType)
+        if cfg.evalDataType == "test_shift":
+            audioPath = os.path.join(cfg.audioPathAVA_shifted, cfg.evalDataType) 
         print(audioPath)
         loader = val_loader(cfg, trialFileName = cfg.evalTrialAVA, \
                             audioPath     = audioPath, \
@@ -38,6 +40,8 @@ def prepare_context_files(cfg):
         csv_orig = None
         if cfg.evalDataType == "val":
             csv_orig = f"{phase}_orig.csv"
+        elif cfg.evalDataType == "test_shift":
+            csv_orig = f"{phase}_orig_shifted_{cfg.shift_factor}s.csv"
         else:
             csv_orig = f"{phase}_orig_modified.csv"
         print(csv_orig)

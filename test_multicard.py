@@ -14,9 +14,16 @@ class DataPrep():
 
     def val_dataloader(self):
         cfg = self.cfg
+        audioPath = os.path.join(cfg.audioPathAVA_reverse , cfg.evalDataType) if cfg.evalDataType == "test_reverse" else \
+                                os.path.join(cfg.audioPathAVA , cfg.evalDataType)
+        if cfg.evalDataType == "test_mute":
+            audioPath = os.path.join(cfg.audioPathAVA_mute, cfg.evalDataType)
+        if cfg.evalDataType == "test_shift":
+            audioPath = os.path.join(cfg.audioPathAVA_shifted, cfg.evalDataType) 
+        print(audioPath)
         loader = val_loader(cfg, trialFileName = cfg.evalTrialAVA, \
-                            audioPath     = os.path.join(cfg.audioPathAVA , cfg.evalDataType), \
-                            visualPath    = os.path.join(cfg.visualPathAVA, cfg.evalDataType), \
+                            audioPath     = audioPath, \
+                            visualPath    = os.path.join(cfg.visualPathAVA, "val"), \
                             num_speakers=cfg.MODEL.NUM_SPEAKERS,
                             )
         valLoader = torch.utils.data.DataLoader(loader,
@@ -30,12 +37,17 @@ def prepare_context_files(cfg):
     path = os.path.join(cfg.DATA.dataPathAVA, "csv")
     for phase in ["val"]:
         csv_f = f"{phase}_loader.csv"
-        csv_orig = f"{phase}_orig.csv"
+        if cfg.evalDataType == "val":
+            csv_orig = f"{phase}_orig.csv"
+        elif cfg.evalDataType == "test_shift":
+            csv_orig = f"{phase}_orig_shifted_{cfg.shift_factor}.csv"
+        else:
+            csv_orig = f"{phase}_orig_modified.csv"
         entity_f = os.path.join(path, phase + "_entity.json")
         ts_f = os.path.join(path, phase + "_ts.json")
-        if os.path.exists(entity_f) and os.path.exists(ts_f):
-            # print("ok")
-            continue
+        # if os.path.exists(entity_f) and os.path.exists(ts_f):
+        #     # print("ok")
+        #     continue
         orig_df = pandas.read_csv(os.path.join(path, csv_orig))
         entity_data = {}
         ts_to_entity = {}

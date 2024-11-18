@@ -102,13 +102,13 @@ class DataPrep():
 
 def prepare_context_files(cfg):
     path = os.path.join(cfg.DATA.dataPathAVA, "csv")
-    for phase in ["train", "val", "test"]:
+    for phase in ["train", "val"]:
         csv_f = f"{phase}_loader.csv"
         csv_orig = f"{phase}_orig.csv"
         entity_f = os.path.join(path, phase + "_entity.json")
         ts_f = os.path.join(path, phase + "_ts.json")
-        if os.path.exists(entity_f) and os.path.exists(ts_f):
-            continue
+        # if os.path.exists(entity_f) and os.path.exists(ts_f):
+        #     continue
         orig_df = pandas.read_csv(os.path.join(path, csv_orig))
         entity_data = {}
         ts_to_entity = {}
@@ -179,8 +179,8 @@ def main(gpu, world_size):
     if rank == 0:
         wandb.init(
             # set the wandb project where this run will be logged
-            project="Landmark_LoCoNet",
-            name=f"vanilla",
+            project="Landmark_LoCoNet_consistency",
+            name=f"talknce",
             # track hyperparameters and run metadata
             config = {
                 "learning_rate": cfg.SOLVER.BASE_LR,

@@ -72,6 +72,8 @@ class DataPrep():
         self.rank = rank
 
     def train_dataloader(self):
+        if self.cfg.only_landmark:
+            print("only_landmark")
 
         loader = train_loader(self.cfg, trialFileName = self.cfg.trainTrialAVA, \
                           audioPath      = os.path.join(self.cfg.audioPathAVA , 'train'), \
@@ -110,14 +112,19 @@ class DataPrep():
 
 def prepare_context_files(cfg):
     path = os.path.join(cfg.DATA.dataPathAVA, "csv")
-    for phase in ["train", "val", "test"]:
-        csv_f = f"{phase}_loader.csv"
-        csv_orig = f"{phase}_orig.csv"
+    for phase in ["train", "val"]:
+        if not cfg.only_landmark:
+            csv_f = f"{phase}_loader.csv"
+            csv_orig = f"{phase}_orig.csv"
+        else:
+            csv_f = f"{phase}_loader_only_landmark.csv"
+            csv_orig = f"{phase}_orig_only_landmark.csv"
         entity_f = os.path.join(path, phase + "_entity.json")
         ts_f = os.path.join(path, phase + "_ts.json")
-        if os.path.exists(entity_f) and os.path.exists(ts_f):
-            continue
+        # if os.path.exists(entity_f) and os.path.exists(ts_f):
+        #     continue
         orig_df = pandas.read_csv(os.path.join(path, csv_orig))
+        print(orig_df.shape[0])
         entity_data = {}
         ts_to_entity = {}
 
@@ -180,6 +187,10 @@ def main(gpu, world_size):
         cfg.modelSavePath += f'_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}'
     if not cfg.use_talknce:
         cfg.modelSavePath += f'_talknce:{cfg.use_talknce}'
+    if cfg.use_full_landmark:
+        cfg.modelSavePath += f"_full_landmark"
+    if cfg.only_landmark:
+        cfg.modelSavePath += f"_only_landmark"
     os.makedirs(cfg.modelSavePath, exist_ok=True)
     print(cfg.modelSavePath)
     modelfiles = glob.glob('%s/model_0*.model' % (cfg.modelSavePath))
@@ -204,7 +215,8 @@ def main(gpu, world_size):
         wandb.init(
             # set the wandb project where this run will be logged
             project="Landmark_LoCoNet_consistency",
-            name=f"inject_talknce_nchannel_{cfg.n_channel}_layer_{cfg.layer}_method_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:{cfg.use_talknce}",
+            # name=f"inject_talknce_nchannel_{cfg.n_channel}_layer_{cfg.layer}_method_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:{cfg.use_talknce}",
+            name = f"inject_talknce_nchannel_{cfg.n_channel}_layer_{cfg.layer}_full_landmark_{cfg.use_full_landmark}_only_landmark_{cfg.only_landmark}",
             # track hyperparameters and run metadata
             config={
                 "learning_rate": cfg.SOLVER.BASE_LR,

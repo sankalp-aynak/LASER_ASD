@@ -100,6 +100,53 @@ class Loconet(nn.Module):
         assert (landmarkTensor.shape[1] == 164)
         return landmarkTensor
 
+     # hook the gradient of the activation
+    def activations_hook(self, grad):
+        self.gradients = grad
+
+    def get_activations_gradient(self):
+        return self.gradients
+
+    def get_forward_activation(self, x, landmarkFeature):
+        B, T, W, H = x.shape
+        x = x.view(B * T, 1, 1, W, H)
+        x = (x / 255 - 0.4161) / 0.1688
+        x = x.transpose(0, 1).transpose(1, 2)
+        batchsize = x.shape[0]
+        x = self.model.visualFrontend.frontend3D(x)
+        x = x.transpose(1, 2)
+        x = x.reshape(x.shape[0] * x.shape[1], x.shape[2], x.shape[3],
+                              x.shape[4]) # b * s * t, c, w, h
+        
+        # inject before self.layer
+        # landmarkFeature has shape (b * s * t, n_channel, H, W)
+        # x has shape (b * s * t, c, W, H)
+
+        layers = [self.model.visualFrontend.resnet.layer1, self.model.visualFrontend.resnet.layer2, self.model.visualFrontend.resnet.layer3, self.model.visualFrontend.resnet.layer4]
+        for i in range(3):
+            if i == self.layer - 1:
+                x = torch.cat((x, landmarkFeature), dim = 1)
+                x = self.bottle_neck(x)
+                x = layers[i](x)
+            else:
+                x = layers[i](x)
+        return x
+    
+    def get_activations(self, visualFeature, landmark):
+        b, s, t = visualFeature.shape[:3]
+
+        # landmark recomposition
+        # initial shape: b, s, t, 82, 2
+        # transform to (b * s * t, 164, H, W) to run 1x1 kernel
+        print(landmark.shape)
+        landmarkFeature = self.create_landmark_tensor(landmark, visualFeature.dtype, visualFeature.device)
+        landmarkFeature = self.landmark_bottleneck(landmarkFeature)
+        
+        visualFeature = visualFeature.view(b * s, *visualFeature.shape[2:])
+        visualEmbed = self.get_forward_activation(visualFeature, landmarkFeature)
+
+        return visualEmbed
+
     def forward_visual_frontend(self, x, landmarkFeature):
         B, T, W, H = x.shape
         if self.layer == 0:
@@ -128,6 +175,10 @@ class Loconet(nn.Module):
                 x = layers[i](x)
             else:
                 x = layers[i](x)
+            if i == 2:
+                # hook the gradient
+                if x.requires_grad:
+                    x.register_hook(self.activations_hook)
 
         x = self.model.visualFrontend.resnet.avgpool(x)
         x = x.reshape(batchsize, -1, 512)
@@ -244,6 +295,29 @@ class Loconet(nn.Module):
         return nloss, prec, num_frames
 
     def forward_evaluation(self, audioFeature, visualFeature, landmark, labels, masks, useLandmark = True):
+        if labels == None:
+            b, s, t = visualFeature.shape[:3]
+
+            # landmark recomposition
+            # initial shape: b, s, t, 82, 2
+            # transform to (b * s * t, 164, H, W) to run 1x1 kernel
+            landmarkFeature = self.create_landmark_tensor(landmark, visualFeature.dtype, visualFeature.device)
+            landmarkFeature = self.landmark_bottleneck(landmarkFeature)
+            if not useLandmark:
+                landmarkFeature = torch.zeros_like(landmarkFeature)
+            
+            visualFeature = visualFeature.view(b * s, *visualFeature.shape[2:])
+
+            audioEmbed = self.model.forward_audio_frontend(audioFeature)    # B, C, T, 4
+            visualEmbed = self.forward_visual_frontend(visualFeature, landmarkFeature)
+            audioEmbed = audioEmbed.repeat(s, 1, 1)
+
+            audioEmbed, visualEmbed = self.model.forward_cross_attention(audioEmbed, visualEmbed)
+            outsAV = self.model.forward_audio_visual_backend(audioEmbed, visualEmbed, b, s)
+            outsAV = outsAV.view(b, s, t, -1)[:, 0, :, :].view(b * t, -1)
+            predScore = self.lossAV.forward(outsAV, labels, masks)
+
+            return predScore
         b, s, t = visualFeature.shape[:3]
 
         # landmark recomposition
@@ -354,7 +428,7 @@ class loconet(nn.Module):
     def evaluate_network(self, epoch, loader, useLandmark = True):
         self.eval()
         predScores = []
-        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}.csv".format(epoch, self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark))
+        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_shifted_{}.csv".format(epoch, self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark, self.cfg.shift_factor))
         evalOrig = self.cfg.evalOrig
         for audioFeature, visualFeature, landmarks, labels, masks in tqdm.tqdm(loader):
             with torch.no_grad():
@@ -385,7 +459,12 @@ class loconet(nn.Module):
     def evaluate(self, epoch, loader, useLandmark = True):
         self.eval()
         predScores = []
-        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_{}_talknce:{}.csv".format(epoch, "reverse" if self.cfg.evalDataType == "test_reverse" else "val", self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark, self.cfg.use_talknce))
+        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_{}_talknce:{}_shifted_{}".format(epoch, "reverse" if self.cfg.evalDataType == "test_reverse" else "val", self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark, self.cfg.use_talknce, self.cfg.shift_factor))
+        if self.cfg.use_full_landmark:
+            evalCsvSave += "_full_landmark"
+        if self.cfg.only_landmark:
+            evalCsvSave += "_only_landmark"
+        evalCsvSave += ".csv"
         evalOrig = self.cfg.evalOrig
         for audioFeature, visualFeature, landmarks, labels, masks in tqdm.tqdm(loader):
             with torch.no_grad():
@@ -407,6 +486,70 @@ class loconet(nn.Module):
         evalRes.drop(['label_id'], axis=1, inplace=True)
         evalRes.drop(['instance_id'], axis=1, inplace=True)
         evalRes.to_csv(evalCsvSave, index=False)
+        print(evalCsvSave)  
+
+    def evaluate_grad_cam(self, epoch, loader):
+        self.eval()
+        predScores = []
+        savePath = os.path.join(self.cfg.WORKSPACE, "grad_cam_our")
+        if os.path.exists(savePath):
+            shutil.rmtree(savePath)
+        os.makedirs(savePath)
+        cnt = 0
+        for id, (audioReverseFeature, visualFeature, landmarks, labels, masks) in tqdm.tqdm(enumerate(loader)):
+            if id < 1:
+                continue
+            b, s, t = visualFeature.shape[0], visualFeature.shape[1], visualFeature.shape[2]
+            
+            visualFeature = visualFeature.cuda()
+            audioReverseFeature = audioReverseFeature.cuda()
+            labels = labels.cuda()
+            masks = masks.cuda()
+            landmarks = landmarks.cuda()
+
+            visualFeatureOriginal = deepcopy(visualFeature)
+            print(visualFeatureOriginal.shape)
+            landmarksOriginal = deepcopy(landmarks)
+
+            pred_score = self.model.forward_evaluation(audioReverseFeature, visualFeature, landmarks, None, None)
+
+            loss = torch.sum(pred_score[:, 1])
+            loss.backward()
+
+            gradients = self.model.get_activations_gradient()
+
+            # pool the gradients across the channels
+            pooled_gradients = torch.mean(gradients, dim=[2, 3])
+
+            visualReverseCopy = deepcopy(visualFeatureOriginal)
+            activations = self.model.get_activations(visualReverseCopy, landmarksOriginal).detach()
+            # weight the channels by corresponding gradients
+            print(activations.shape, pooled_gradients.shape)
+            for i in range(activations.shape[1]):
+                for j in range(activations.shape[0]):
+                    activations[j, i, :, :] *= pooled_gradients[j, i]
+
+            grad_cam = torch.sum(activations, dim = 1)
+            grad_cam = torch.nn.functional.relu(grad_cam)
+            grad_cam = grad_cam.reshape(s, t, *grad_cam.shape[1:])[0]
+
+            for index in range(t):
+                heatmap = grad_cam[index].detach().cpu().numpy()
+
+                # Normalize the heatmap
+                heatmap /= numpy.max(heatmap)
+
+                # Add a channel dimension to make it (H, W, 1)
+                heatmap = numpy.expand_dims(heatmap, axis=-1)
+                # heatmap = heatmap.swapaxes(0,1).swapaxes(1, 2)
+                heatmap = cv2.resize(heatmap, (112, 112))
+                heatmap = numpy.uint8(255 * heatmap)
+                heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+                
+                superimposed_img = heatmap * 0.4 + visualFeatureOriginal[0, 0, index:(index+1)].transpose(0,1).transpose(1, 2).cpu().numpy()
+                cv2.imwrite(os.path.join(savePath, f"detecton_frame_{index}_prediction_{pred_score[index, 1] >= 0}.png"), superimposed_img)
+            break
+        
 
     def saveParameters(self, path):
         torch.save(self.state_dict(), path)

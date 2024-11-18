@@ -18,6 +18,8 @@ class DataPrep():
                                 os.path.join(cfg.audioPathAVA , cfg.evalDataType)
         if cfg.evalDataType == "test_mute":
             audioPath = os.path.join(cfg.audioPathAVA_mute, cfg.evalDataType)
+        if cfg.evalDataType == "test_shift":
+            audioPath = os.path.join(cfg.audioPathAVA_shifted, cfg.evalDataType) 
         print(audioPath)
         loader = val_loader(cfg, trialFileName = cfg.evalTrialAVA, \
                             audioPath     = audioPath, \
@@ -38,6 +40,8 @@ def prepare_context_files(cfg):
         csv_orig = None
         if cfg.evalDataType == "val":
             csv_orig = f"{phase}_orig.csv"
+        elif cfg.evalDataType == "test_shift":
+            csv_orig = f"{phase}_orig_shifted_{cfg.shift_factor}s.csv"
         else:
             csv_orig = f"{phase}_orig_modified.csv"
         print(csv_orig)
@@ -99,15 +103,21 @@ def main():
         quit()
 
     s = loconet(cfg, cfg.n_channel, cfg.layer, consistency_method=cfg.consistency_method, consistency_lambda=cfg.consistency_lambda)
-    print(s)
+    # print(s)
 
     if not cfg.use_consistency:
-        weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
+        if cfg.use_full_landmark:
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark/*'))[-1]
+            if cfg.only_landmark:
+                weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark_only_landmark/*'))[-1]
+        else:
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
     else:
         if cfg.use_talknce:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-1]
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-7]
         else:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-1]
+            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-9]
+    print(f"evaluate ckpt: {weight_path}")
     s.loadParameters(weight_path)
     mAP = s.evaluate(epoch=epoch, loader=data.val_dataloader(), useLandmark=cfg.use_landmark)
     print(f"evaluate ckpt: {weight_path}")
