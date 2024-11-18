@@ -63,17 +63,33 @@ Please modify the path to model's weight, model's hyperparameters, and dataPath 
 
 #### Synchronized dataset
 
+For our model, please run:
+
 ```
 python test_mulicard_landmark.py --cfg configs/multi.yaml
 ```
 
+For LoCoNet, please run:
+
+```
+python test_mulicard.py --cfg configs/multi.yaml
+```
+
 #### Unsynchronized dataset
+
+For our model, please run:
 
 ```
 python test_landmark_loconet.py --cfg configs/multi.yaml
 ```
 
-After this, please run
+For LoCoNet, please run:
+
+```
+python test.py --cfg configs/multi.yaml
+```
+
+After running the evaluation file, please run
 
 ```
 python utils/get_ava_active_speaker_performance_no_map.py -g <path to modified groundtruth csv file> -p <path to our result csv file>
