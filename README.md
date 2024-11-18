@@ -106,3 +106,5 @@ TODO: insert later
 ### Acknowledge
 
 The code base of this project is studied from [TalkNet](https://github.com/TaoRuijie/TalkNet-ASD) and [LoCoNet](https://github.com/SJTUwxz/LoCoNet_ASD/tree/main) which is a very easy-to-use ASD pipeline.
+
+The contrative loss function is obtained through communication with the author of [TalkNCE](https://arxiv.org/pdf/2309.12306).
