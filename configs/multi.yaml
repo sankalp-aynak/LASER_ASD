@@ -2,16 +2,13 @@ SEED: "20210617"
 NUM_GPUS: 4
 NUM_WORKERS: 6
 LOG_NAME: 'config.txt'
-# OUTPUT_DIR: 'talknce_AVA'  # savePath
-# OUTPUT_DIR: '/nobackup/le/LoCoNet'
-OUTPUT_DIR: '/nobackup/le/LoCoNet/landmark'
+OUTPUT_DIR: '
 evalDataType: "val"
-# evalDataType: "test_mute"
+# evalDataType: "test_reverse"
 downloadAVA: False
 evaluation: False
 RESUME: False
-RESUME_PATH: "weights/loconet_ava_best.model"
-# RESUME_PATH: "weights/talknce_ava_pretrained.model"
+RESUME_PATH: ""
 RESUME_EPOCH: 0
 use_consistency: True
 use_full_landmark: False
@@ -24,7 +21,7 @@ shift_factor: 0
 use_talkies: False
 
 DATA:
-    dataPathAVA: '/nobackup/le/LoCoNet/AVA_Dataset'
+    dataPathAVA: ''
 
 DATALOADER:
     nDataLoaderThread: 4

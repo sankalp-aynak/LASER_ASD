@@ -15,8 +15,8 @@ def main():
     parser.add_argument('--batchSize',    type=int,   default=2500,  help='Dynamic batch size, default is 2500 frames, other batchsize (such as 1500) will not affect the performance')
     parser.add_argument('--nDataLoaderThread', type=int, default=4,  help='Number of loader threads')
     # Data path
-    parser.add_argument('--dataPathAVA',  type=str, default='/nobackup/le/LoCoNet/AVA_Dataset', help='Save path of AVA dataset')
-    parser.add_argument('--savePath',     type=str, default='/nobackup/le/LoCoNet' )
+    parser.add_argument('--dataPathAVA',  type=str, default='/AVA_Dataset', help='Save path of AVA dataset')
+    parser.add_argument('--savePath',     type=str, default='' )
     # Data selection
     parser.add_argument('--evalDataType', type=str, default="test", help='Only for AVA, to choose the dataset for evaluation, val or test')
     # For download dataset only, for evaluation only

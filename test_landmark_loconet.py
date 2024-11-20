@@ -107,16 +107,16 @@ def main():
 
     if not cfg.use_consistency:
         if cfg.use_full_landmark:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark/*'))[-1]
+            weight_path = sorted(glob.glob(f'landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark/*'))[-1]
             if cfg.only_landmark:
-                weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark_only_landmark/*'))[-1]
+                weight_path = sorted(glob.glob(f'landmark/model_{cfg.n_channel}_{cfg.layer}_full_landmark_only_landmark/*'))[-1]
         else:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
+            weight_path = sorted(glob.glob(f'landmark/model_{cfg.n_channel}_{cfg.layer}/*'))[-1]
     else:
         if cfg.use_talknce:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-7]
+            weight_path = sorted(glob.glob(f'landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}/*'))[-7]
         else:
-            weight_path = sorted(glob.glob(f'/nobackup/le/LoCoNet/landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-9]
+            weight_path = sorted(glob.glob(f'landmark/model_{cfg.n_channel}_{cfg.layer}_consistency_{cfg.consistency_method}_lambda_{cfg.consistency_lambda}_talknce:False/*'))[-9]
     print(f"evaluate ckpt: {weight_path}")
     s.loadParameters(weight_path)
     mAP = s.evaluate(epoch=epoch, loader=data.val_dataloader(), useLandmark=cfg.use_landmark)

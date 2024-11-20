@@ -32,8 +32,8 @@ parser.add_argument('--r', type = int, required=True)
 parser.add_argument('--type', type = str, required=True)
 args = parser.parse_args()
 
-path_to_frame = f'/nobackup/le/LoCoNet/ASW_Dataset/clips_videos/{args.type}'
-out_dir = f'/nobackup/le/LoCoNet/ASW_Dataset/clip_videos_landmark/{args.type}'
+path_to_frame = f'ASW_Dataset/clips_videos/{args.type}'
+out_dir = f'ASW_Dataset/clip_videos_landmark/{args.type}'
 folders = os.listdir(path_to_frame)
 folders = sorted(folders)
 
@@ -107,7 +107,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
 
   return annotated_image
 
-json_path = f'/nobackup/le/LoCoNet/ASW_Dataset/csv/landmark/{args.type}'
+json_path = f'ASW_Dataset/csv/landmark/{args.type}'
 
 
 cnt = 0
