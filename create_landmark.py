@@ -122,8 +122,6 @@ detector = vision.FaceLandmarker.create_from_options(options)
 
 for folder in tqdm.tqdm(folders[args.l:min((args.r+1), len(folders)):1]):
     videoName = folder
-    if videoName != "cNPz2pjw3P4":
-        continue
     if os.path.exists(os.path.join(out_dir, folder)) == False:
         os.makedirs(os.path.join(out_dir, folder))
     os.makedirs(os.path.join(json_path, folder), exist_ok=True)
@@ -188,8 +186,8 @@ for folder in tqdm.tqdm(folders[args.l:min((args.r+1), len(folders)):1]):
 
         ts_f = os.path.join(json_path, folder, subfolder.split('/')[-1] + '.json')
         
-        # with open(ts_f, 'w') as f:
-        #     json.dump(landmark_json, f)
+        with open(ts_f, 'w') as f:
+            json.dump(landmark_json, f)
             # break
         # break
     # break
