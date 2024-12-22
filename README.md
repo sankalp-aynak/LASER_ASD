@@ -4,6 +4,11 @@
 
 [Le Thien Phuc Nguyen*](https://plnguyen2908.github.io/), [Zhuoran Yu*](https://www.zhuoranyu.com/), [Yong Jae Lee](https://pages.cs.wisc.edu/~yongjaelee/) (* *Equal Contribution*)
 
+| Model           | Weight                                                                                        | Trained on        |
+| --------------- | --------------------------------------------------------------------------------------------- | ----------------- |
+| LoCoNet + LASER | [Checkpoint](https://drive.google.com/file/d/1IrntlKqzw5EYAVbyDupr5tk-H3q9kkoW/view?usp=sharing) | AVA-Activespeaker |
+| TalkNCE + LASER | [Checkpoint](https://drive.google.com/file/d/1N8nFVybKXL7NFzJHMfo9x8FjJkUzEUc_/view?usp=sharing) | AVA-Activespeaker |
+
 ### Dependencies
 
 Start from building the environment
