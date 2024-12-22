@@ -1,5 +1,9 @@
 ## LASER: Lip Landmark Assisted Speaker Detection for Robustness
 
+### [Project Page](https://plnguyen2908.github.io/LASER-ASD-project-page/) | [arXiv]() | [Citation](#Citation)
+
+[Le Thien Phuc Nguyen*](https://plnguyen2908.github.io/), [Zhuoran Yu*](https://www.zhuoranyu.com/), [Yong Jae Lee](https://pages.cs.wisc.edu/~yongjaelee/) (* *Equal Contribution*)
+
 ### Dependencies
 
 Start from building the environment
@@ -117,8 +121,7 @@ Here are some instructions in using the code:
    parser.add_argument('--audioName',             type=str,
                            default="demo_6_our",   help='Demo video name')
    ```
-
-   4. Then, on line 515 and 516, if you want to shift by some second, change the shift_ms (in 1s = 1000ms). Or if you want to swap the audio, change swap = True. Otherwise, setting to 0 and false will do the normal demo.
+4. Then, on line 515 and 516, if you want to shift by some second, change the shift_ms (in 1s = 1000ms). Or if you want to swap the audio, change swap = True. Otherwise, setting to 0 and false will do the normal demo.
 
 ### Citation
 
