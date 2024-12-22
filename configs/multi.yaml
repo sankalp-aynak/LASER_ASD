@@ -2,7 +2,7 @@ SEED: "20210617"
 NUM_GPUS: 4
 NUM_WORKERS: 6
 LOG_NAME: 'config.txt'
-OUTPUT_DIR: '
+OUTPUT_DIR: '/nobackup/le/LoCoNet/landmark'
 evalDataType: "val"
 # evalDataType: "test_reverse"
 downloadAVA: False
@@ -19,9 +19,10 @@ use_talknce: True
 only_landmark: False
 shift_factor: 0
 use_talkies: False
+talknce_lambda: 0
 
 DATA:
-    dataPathAVA: ''
+    dataPathAVA: '/nobackup/le/LoCoNet/AVA_Dataset'
 
 DATALOADER:
     nDataLoaderThread: 4

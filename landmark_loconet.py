@@ -25,7 +25,7 @@ import numpy as np
 
 class Loconet(nn.Module):
 
-    def __init__(self, cfg, n_channel, layer, consistency = -1, consistency_method = "kl"):
+    def __init__(self, cfg, n_channel, layer, consistency = -1, consistency_method = "kl", talknce_lambda = 0.0):
         super(Loconet, self).__init__()
         self.cfg = cfg
         self.model = locoencoder(cfg)
@@ -55,6 +55,7 @@ class Loconet(nn.Module):
 
         self.consistency_lambda = consistency
         self.consistency_method = consistency_method
+        self.talknce_lambda = talknce_lambda
 
     def create_landmark_tensor(self, landmark, dtype, device):
         """
@@ -289,7 +290,7 @@ class Loconet(nn.Module):
             
             # print(consistency_loss)
 
-        nloss = nlossAV + 0.4 * nlossA + 0.4 * nlossV + 0.3*nce_loss + consistency_loss
+        nloss = nlossAV + 0.4 * nlossA + 0.4 * nlossV + self.talknce_lambda*nce_loss + consistency_loss
 
         num_frames = masks.sum()
         return nloss, prec, num_frames
@@ -350,7 +351,7 @@ class Loconet(nn.Module):
 class loconet(nn.Module):
     
 
-    def __init__(self, cfg, n_channel = 1, layer = 1, rank=None, device=None, consistency_method = "kl", consistency_lambda = -1):
+    def __init__(self, cfg, n_channel = 1, layer = 1, rank=None, device=None, consistency_method = "kl", consistency_lambda = -1, talknce_lambda = 0.0):
         super(loconet, self).__init__()
         self.cfg = cfg
         self.rank = rank
@@ -359,7 +360,7 @@ class loconet(nn.Module):
             self.device = device
             self.n_channel = n_channel
             self.layer = layer
-            self.model = Loconet(cfg, n_channel, layer, consistency_lambda, consistency_method).to(device)
+            self.model = Loconet(cfg, n_channel, layer, consistency_lambda, consistency_method, talknce_lambda).to(device)
             self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             self.model = nn.parallel.DistributedDataParallel(self.model,
                                                              device_ids=[rank],

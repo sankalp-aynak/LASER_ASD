@@ -199,17 +199,17 @@ def main(gpu, world_size):
         print("Model %s loaded from previous state!" % modelfiles[-1])
         epoch = int(os.path.splitext(os.path.basename(modelfiles[-1]))[0][6:10]) + 1
         if not cfg.use_consistency:
-            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device)
+            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device, talknce_lambda=cfg.talknce_lambda)
             s.loadParameters(modelfiles[-1])
         else:
-            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device, cfg.consistency_method, cfg.consistency_lambda)
+            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device, cfg.consistency_method, cfg.consistency_lambda, cfg.talknce_lambda)
             s.loadParameters(modelfiles[-1])
     else:
         epoch = 1
         if not cfg.use_consistency:
-            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device)
+            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device, talknce_lambda=cfg.talknce_lambda)
         else:
-            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device, cfg.consistency_method, cfg.consistency_lambda)
+            s = loconet(cfg, cfg.n_channel, cfg.layer, rank, device, cfg.consistency_method, cfg.consistency_lambda, cfg.talknce_lambda)
 
     if rank == 0:
         wandb.init(

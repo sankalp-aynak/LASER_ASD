@@ -97,6 +97,29 @@ python utils/get_ava_active_speaker_performance_no_map.py -g <path to modified g
 
 because the get_ava_active_speaker_performance.py only calculates the mAP based on the number of positive examples which is not possible in our shifted dataset.
 
+### Demo Code
+
+Based on [TalkNet](https://github.com/TaoRuijie/TalkNet-ASD)'s codebase, we have created demo codes for both LoCoNet and LASER. The codes are stored in demoLoCoNet.py and demoLoCoNet_landmark.py
+
+Here are some instructions in using the code:
+
+1. Create a demo folder and put the video you wanted in there.
+2. in the demo python file, we support 3 features:
+
+   * normal, synced audio
+   * shifted audio by some amount of seconds
+   * swap the first half and second half of the audio
+3. Then, we support using different audio and video. You just need to specify the audio from a video you want to use:
+
+   ```
+   parser.add_argument('--videoName',             type=str,
+                           default="demo_6_our",   help='Demo video name')
+   parser.add_argument('--audioName',             type=str,
+                           default="demo_6_our",   help='Demo video name')
+   ```
+
+   4. Then, on line 515 and 516, if you want to shift by some second, change the shift_ms (in 1s = 1000ms). Or if you want to swap the audio, change swap = True. Otherwise, setting to 0 and false will do the normal demo.
+
 ### Citation
 
 Please cite the following if our paper or code is helpful to your research.
