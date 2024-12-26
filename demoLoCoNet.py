@@ -343,7 +343,7 @@ def prepare_input(args, tracks):
 def inference(args, cfg, visual_feature, audio_feature, lenTracks):
     # initialize model
     model = loconet(cfg)
-    model.loadParameters('loconet_ava_best.model')
+    model.loadParameters('')
     model = model.to(device='cuda')
     model.eval()
 

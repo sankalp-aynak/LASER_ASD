@@ -345,8 +345,7 @@ def prepare_input(args, tracks):
 def inference(args, cfg, visual_feature, audio_feature, lenTracks):
     # initialize model
     model = loconet(cfg, n_channel=4, layer=1)
-    # model.loadParameters('/nobackup/le/LoCoNet/landmark/model_4_1_consistency_kl_lambda_1_talknce:False/model_0023_acc0.96.model')
-    model.loadParameters('/nobackup/le/LoCoNet/landmark/model_4_1_consistency_kl_lambda_1/model_0023_acc0.96.model')
+    model.loadParameters('')
     model = model.to(device='cuda')
     model.eval()
 
