@@ -1,6 +1,6 @@
 ## LASER: Lip Landmark Assisted Speaker Detection for Robustness
 
-### [Project Page](https://plnguyen2908.github.io/LASER-ASD-project-page/) | [arXiv]() | [Citation](#Citation)
+### [Project Page](https://plnguyen2908.github.io/LASER-ASD-project-page/) | [arXiv](https://arxiv.org/abs/2501.11899v1) | [Citation](#Citation)
 
 [Le Thien Phuc Nguyen*](https://plnguyen2908.github.io/), [Zhuoran Yu*](https://www.zhuoranyu.com/), [Yong Jae Lee](https://pages.cs.wisc.edu/~yongjaelee/) (* *Equal Contribution*)
 
@@ -132,7 +132,17 @@ Here are some instructions in using the code:
 
 Please cite the following if our paper or code is helpful to your research.
 
-TODO: insert later
+```
+@misc{nguyen2025laserliplandmarkassisted,
+      title={LASER: Lip Landmark Assisted Speaker Detection for Robustness}, 
+      author={Le Thien Phuc Nguyen and Zhuoran Yu and Yong Jae Lee},
+      year={2025},
+      eprint={2501.11899},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2501.11899}, 
+}
+```
 
 ### Acknowledge
 
