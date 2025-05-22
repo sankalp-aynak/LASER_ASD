@@ -15,7 +15,7 @@ class lossAV(nn.Module):
         out = x.squeeze(1)
         out = self.FC(out)
         if labels == None:
-            return x
+            return out[:,1]
         else:
             nloss = self.criterion(out, labels) * masks
 
