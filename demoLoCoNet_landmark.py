@@ -77,13 +77,27 @@ def args_create():
 
     args = parser.parse_args()
 
-    args.videoPath = glob.glob(os.path.join(
-        args.videoFolder, args.videoName + '.*'))[0]
-    args.audioPath = glob.glob(os.path.join(
-        args.videoFolder, args.audioName + '.*'))[0]
+    # Find video path
+    video_candidates = glob.glob(os.path.join(args.videoFolder, args.videoName + '.*'))
+    if not video_candidates:
+        raise FileNotFoundError(f"Video not found: {args.videoName} in {args.videoFolder}")
+    args.videoPath = video_candidates[0]
+
+    # Confirm audio exists
+    audio_path = os.path.join(args.videoFolder, f"{args.videoName}.wav")
+    if not os.path.exists(audio_path):
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+    args.audioPath = audio_path
+
+    # Define output path
     args.savePath = os.path.join(args.videoFolder, args.videoName)
 
+    # Optional: print paths for debugging
+    print("🎬 Video path:", args.videoPath)
+    print("🎧 Audio path:", args.audioPath)
+
     return args
+
 
 
 def scene_detect(args):
@@ -345,28 +359,38 @@ def prepare_input(args, tracks):
 def inference(args, cfg, visual_feature, audio_feature, lenTracks):
     # initialize model
     model = loconet(cfg, n_channel=4, layer=1)
-    model.loadParameters('')
-    model = model.to(device='cuda')
+    model.loadParameters('pretrained/LoCoNet_LASER.model')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
     model.eval()
 
     with torch.no_grad():
         result = [None for i in range(lenTracks)]
 
+        print("Total tracks to evaluate:", lenTracks)
         # TODO: make a forward pass to make prediction
         for i in tqdm.tqdm(range(lenTracks)):
             visual = visual_feature[i]
 
             # get visual feature with size
-            visualFeature = visual.to(dtype=torch.float, device='cuda')
+            visualFeature = visual.to(dtype=torch.float, device=device)
             b, s, t = visualFeature.shape[0], visualFeature.shape[1], visualFeature.shape[2]
 
-            landmark = torch.full((b,s,t,82,2), 0.0, device='cuda')
+            landmark = torch.full((b,s,t,82,2), 0.0, device=device)
 
             # get audio feature
-            audioFeature = audio_feature[i].to(dtype=torch.float, device='cuda')
+            audioFeature = audio_feature[i].to(dtype=torch.float, device=device)
 
             # run frontend part of the model
             predScore = model.model.forward_evaluation(audioFeature, visualFeature, landmark, None, None, False)
+            print(f"Track {i} score shape: {predScore.shape}, values: {predScore[:5]}")
+            # Save per-track scores as .npy
+            try:
+                path = os.path.join(args.pyworkPath, f"scores_track{i:03d}.npy")
+                np.save(path, predScore.cpu().numpy())
+                print(f"✅ Saved: {path}")
+            except Exception as e:
+                print(f"❌ Failed to save track {i}: {e}")
             result[i] = predScore
             print(sum(predScore < 0))
 
@@ -402,7 +426,7 @@ def visualization(args, pred, tracks):
             clr = colorDict[int((face['score'] >= 0.0))]
             if face['score'] >= 0:
                 l.append(fidx)
-            txt = round(face['score'], 2)
+            txt = round(face['score'].item(), 2)
             p1 = (int(face['bbox'][0]), int(face['bbox'][1]))
             p2 = (int(face['bbox'][2]), int(face['bbox'][3]))
             cv2.rectangle(image, p1, p2, (0, clr, 255-clr), 3)
@@ -467,6 +491,7 @@ def main():
 
     # setup configuration
     default_config = {'cfg': './configs/multi.yaml'}
+    sys.argv= [sys.argv[0]]
     cfg = bootstrap(default_cfg=default_config, print_cfg=True)
 
     warnings.filterwarnings("ignore")
@@ -512,7 +537,7 @@ def main():
     audio = AudioSegment.from_wav(args.audioFilePath)
 
     shift_ms = 0
-    swap = False
+    swap = True
     if shift_ms > 0:
         # Delay the audio by adding silence at the start
         silence = AudioSegment.silent(duration=shift_ms)

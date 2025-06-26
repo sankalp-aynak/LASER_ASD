@@ -379,44 +379,55 @@ def inference(args, cfg, visual_feature, audio_feature, lenTracks):
 
 
 def visualization(args, pred, tracks):
-    # get list of frames
-    flist = glob.glob(os.path.join(args.pyframesPath, '*.jpg'))
-    flist.sort()
+    import glob, os, cv2, subprocess
+    from tqdm import tqdm
 
-    faces = [[] for i in range(len(flist))]
+    flist = sorted(glob.glob(os.path.join(args.pyframesPath, '*.jpg')))
+    faces = [[] for _ in range(len(flist))]
+
     for tidx, track in enumerate(tracks):
         score = pred[tidx]
         for fidx, frame in enumerate(track['frame'].tolist()):
-            # s = score[max(fidx - 2, 0): min(fidx + 3, len(score) - 1)] # average smoothing
-            # s = numpy.mean(s)
-            faces[frame].append(
-                {'track': tidx, 'score': score[fidx], 'bbox': track['bbox'][fidx]})
+            faces[frame].append({
+                'track': tidx,
+                'score': score[fidx],
+                'bbox': track['bbox'][fidx]
+            })
 
-    # begin writing result video
-    firstImage = cv2.imread(flist[0])
-    fw = firstImage.shape[1]
-    fh = firstImage.shape[0]
-    vOut = cv2.VideoWriter(os.path.join(
-        args.pyaviPath, 'video_only.avi'), cv2.VideoWriter_fourcc(*'XVID'), 25, (fw, fh))
+    # Setup video writer
+    first_img = cv2.imread(flist[0])
+    h, w = first_img.shape[:2]
+    padded_h = h + 50  # Extra space at top
+    vOut = cv2.VideoWriter(
+        os.path.join(args.pyaviPath, 'video_only.avi'),
+        cv2.VideoWriter_fourcc(*'XVID'), 25, (w, padded_h)
+    )
 
     colorDict = {0: 0, 1: 255}
-    l = []
-    for fidx, frame in tqdm.tqdm(enumerate(flist), total=len(flist)):
-        image = cv2.imread(frame)
-        for face in faces[fidx]:
-            clr = colorDict[int((face['score'] >= 0.0))]
-            if face['score'] >= 0:
-                l.append(fidx)
-            txt = round(face['score'], 2)
-            p1 = (int(face['bbox'][0]), int(face['bbox'][1]))
-            p2 = (int(face['bbox'][2]), int(face['bbox'][3]))
-            cv2.rectangle(image, p1, p2, (0, clr, 255-clr), 3)
-            cv2.imwrite(os.path.join(args.pyframesViz, frame.split('/')[-1]), image)
-            cv2.putText(image, '%s' % (txt), p1,
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, clr, 255-clr), 2)
+    for fidx, frame_path in tqdm(enumerate(flist), total=len(flist)):
+        image = cv2.imread(frame_path)
+        image = cv2.resize(image, (960, 540))
+        image = cv2.copyMakeBorder(image, 50, 0, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+
+        for i, face in enumerate(faces[fidx]):
+            score_val = round(face['score'], 2)
+            track_id = face['track']
+            clr = colorDict[int(score_val >= 0.0)]
+
+            # Draw bbox
+            x1, y1, x2, y2 = map(int, face['bbox'])
+            cv2.rectangle(image, (x1, y1 + 50), (x2, y2 + 50), (0, clr, 255 - clr), 2)
+
+            # Draw ID + score on top bar
+            label = f"Face {track_id}: {score_val}"
+            text_x = 10 + i * 250
+            text_y = 35
+            cv2.putText(image, label, (text_x, text_y), #label
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, clr, 255 - clr), 2)
+
+        cv2.imwrite(os.path.join(args.pyframesViz, os.path.basename(frame_path)), image)
         vOut.write(image)
-    l = list(set(l))
-    # print(l)
+
     vOut.release()
     command = ("ffmpeg -y -i %s -i %s -threads %d -c:v copy -c:a copy %s -loglevel panic" %
                (os.path.join(args.pyaviPath, 'video_only.avi'), os.path.join(args.pyaviPath, 'audio.wav'),

@@ -1,22 +1,22 @@
 SEED: "20210617"
-NUM_GPUS: 4
+NUM_GPUS: 0 #4
 NUM_WORKERS: 6
 LOG_NAME: 'config.txt'
 OUTPUT_DIR: '/nobackup/le/LoCoNet/landmark'
 evalDataType: "val"
 # evalDataType: "test_reverse"
 downloadAVA: False
-evaluation: False
+evaluation: True # False
 RESUME: False
 RESUME_PATH: ""
 RESUME_EPOCH: 0
 use_consistency: True
 use_full_landmark: False
 consistency_method: "kl"
-consistency_lambda: 0
+consistency_lambda: #0 
 use_landmark: True
 use_talknce: True
-only_landmark: False
+only_landmark: True #False
 shift_factor: 0
 use_talkies: False
 talknce_lambda: 0
@@ -41,6 +41,7 @@ MODEL:
     AV: "speaker_temporal"
     AV_layers: 3
     ADJUST_ATTENTION: 0
+    WEIGHT: pretrained/LoCoNet_LASER.model # added
 
 n_channel: 1
 layer: 1
@@ -50,7 +51,7 @@ TRAIN:
     MAX_EPOCH: 25
     AUDIO_AUG: 1 
     TEST_INTERVAL: 1
-    TRAINER_GPU: 4
+    TRAINER_GPU: 0 #4
 
 
 VAL:

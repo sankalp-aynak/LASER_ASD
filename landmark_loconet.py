@@ -373,7 +373,7 @@ class loconet(nn.Module):
         else:
             self.n_channel = n_channel
             self.layer = layer
-            self.model = Loconet(cfg, n_channel, layer).cuda()
+            self.model = Loconet(cfg, n_channel, layer).to("cpu") #.cuda()
             self.evalDataType = cfg.evalDataType
             self.method = consistency_method
             self.consistency_lambda = consistency_lambda
