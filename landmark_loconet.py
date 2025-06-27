@@ -347,6 +347,27 @@ class Loconet(nn.Module):
         _, predScore, _, _ = self.lossAV.forward(outsAV, labels, masks)
 
         return predScore
+    
+    def forward_visual_only_evaluation(self, visualFeature, landmark):
+        b, s, t = visualFeature.shape[:3]
+
+        # 🧱 Step 1: Rebuild landmark maps for lip tracking
+        landmarkFeature = self.create_landmark_tensor(landmark, visualFeature.dtype, visualFeature.device)
+        landmarkFeature = self.landmark_bottleneck(landmarkFeature)
+
+        # 🌀 Step 2: Flatten batch and sequence for frontend
+        visualFeature = visualFeature.view(b * s, *visualFeature.shape[2:])
+
+        # 🧠 Step 3: Pass through visual-only stack (3D CNN + ResNet + V-TCN + SIM/LIM)
+        visualEmbed = self.forward_visual_frontend(visualFeature, landmarkFeature)
+
+        # 🎯 Step 4: Classifier head for visual-only predictions
+        outsV = self.model.forward_visual_backend(visualEmbed)
+
+        # 🧾 Step 5: Reshape to (b, s, t, num_classes) and return
+        outsV = outsV.view(b, s, t, -1)[:, 0, :, :].view(b * t, -1)
+        return outsV
+
 
 class loconet(nn.Module):
     
@@ -362,10 +383,16 @@ class loconet(nn.Module):
             self.layer = layer
             self.model = Loconet(cfg, n_channel, layer, consistency_lambda, consistency_method, talknce_lambda).to(device)
             self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
-            self.model = nn.parallel.DistributedDataParallel(self.model,
-                                                             device_ids=[rank],
-                                                             output_device=rank,
-                                                             find_unused_parameters=False)
+            if device.type == 'cuda':
+                self.model = nn.parallel.DistributedDataParallel(
+                    self.model,
+                    device_ids=[rank],
+                    output_device=rank,
+                    find_unused_parameters=False
+                )
+            else:
+                # Safe fallback for CPU training
+                self.model = nn.parallel.DistributedDataParallel(self.model)
             self.optim = torch.optim.Adam(self.model.parameters(), lr=self.cfg.SOLVER.BASE_LR)
             self.scheduler = torch.optim.lr_scheduler.StepLR(self.optim,
                                                              step_size=1,
@@ -426,7 +453,7 @@ class loconet(nn.Module):
         dist.barrier()
         return loss / num, lr, acc
 
-    def evaluate_network(self, epoch, loader, useLandmark = True):
+    def evaluate_network(self, epoch, loader, useLandmark = True, visual_only = False):
         self.eval()
         predScores = []
         evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_shifted_{}.csv".format(epoch, self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark, self.cfg.shift_factor))
@@ -438,6 +465,14 @@ class loconet(nn.Module):
                 labels = labels.cuda()
                 masks = masks.cuda()
                 landmarks = landmarks.cuda()
+            if visual_only:
+                # 🟢 Visual-only inference path
+                predScore = self.model.forward_visual_only_evaluation(visualFeature, landmarks)
+            else:
+                # 🔵 Standard audio-visual inference path
+                audioFeature = audioFeature.cuda()
+                labels = labels.cuda()
+                masks = masks.cuda()
                 predScore = self.model.forward_evaluation(audioFeature, visualFeature, landmarks, labels, masks, useLandmark)
                 predScore = predScore[:, 1].detach().cpu().numpy()
                 predScores.extend(predScore)
@@ -457,10 +492,25 @@ class loconet(nn.Module):
             str(subprocess.run(cmd, shell=True, capture_output=True).stdout).split(' ')[2][:5])
         return mAP
     
-    def evaluate(self, epoch, loader, useLandmark = True):
+    def evaluate(self, epoch, loader, useLandmark=True, visual_only=False):
         self.eval()
         predScores = []
-        evalCsvSave = os.path.join(self.cfg.WORKSPACE, "{}_res_{}_{}_{}_{}_{}_{}_talknce:{}_shifted_{}".format(epoch, "reverse" if self.cfg.evalDataType == "test_reverse" else "val", self.n_channel, self.layer, self.method, self.consistency_lambda, useLandmark, self.cfg.use_talknce, self.cfg.shift_factor))
+
+        evalCsvSave = os.path.join(
+            self.cfg.WORKSPACE,
+            "{}_res_{}_{}_{}_{}_{}_{}_talknce:{}_shifted_{}".format(
+                epoch,
+                "reverse" if self.cfg.evalDataType == "test_reverse" else "val",
+                self.n_channel,
+                self.layer,
+                self.method,
+                self.consistency_lambda,
+                useLandmark,
+                self.cfg.use_talknce,
+                self.cfg.shift_factor
+            )
+        )
+
         if self.cfg.use_full_landmark:
             evalCsvSave += "_full_landmark"
         if self.cfg.only_landmark:
@@ -469,14 +519,20 @@ class loconet(nn.Module):
         evalOrig = self.cfg.evalOrig
         for audioFeature, visualFeature, landmarks, labels, masks in tqdm.tqdm(loader):
             with torch.no_grad():
-                audioFeature = audioFeature.cuda()
                 visualFeature = visualFeature.cuda()
-                labels = labels.cuda()
-                masks = masks.cuda()
                 landmarks = landmarks.cuda()
-                predScore = self.model.forward_evaluation(audioFeature, visualFeature, landmarks, labels, masks, useLandmark)
+                if visual_only:
+                    # 🟢 Visual-only pathway
+                    predScore = self.model.forward_visual_only_evaluation(visualFeature, landmarks)
+                else:
+                    # 🔵 Standard audio-visual pathway
+                    audioFeature = audioFeature.cuda()
+                    labels = labels.cuda()
+                    masks = masks.cuda()
+                    predScore = self.model.forward_evaluation(audioFeature, visualFeature, landmarks, labels, masks, useLandmark)
                 predScore = predScore[:, 1].detach().cpu().numpy()
                 predScores.extend(predScore)
+
         # evalLines = open(evalOrig).read().splitlines()[1:]
         labels = []
         labels = pandas.Series(['SPEAKING_AUDIBLE' if score >= 0.5 else 'NOT_SPEAKING' for score in predScores])
@@ -489,7 +545,7 @@ class loconet(nn.Module):
         evalRes.to_csv(evalCsvSave, index=False)
         print(evalCsvSave)  
 
-    def evaluate_grad_cam(self, epoch, loader):
+    def evaluate_grad_cam(self, epoch, loader, visual_only = False):
         self.eval()
         predScores = []
         savePath = os.path.join(self.cfg.WORKSPACE, "grad_cam_our")
@@ -512,8 +568,10 @@ class loconet(nn.Module):
             print(visualFeatureOriginal.shape)
             landmarksOriginal = deepcopy(landmarks)
 
-            pred_score = self.model.forward_evaluation(audioReverseFeature, visualFeature, landmarks, None, None)
-
+            if visual_only:
+                pred_score = self.model.forward_visual_only_evaluation(visualFeature, landmarks)
+            else:
+                pred_score = self.model.forward_evaluation(audioReverseFeature, visualFeature, landmarks, None, None)
             loss = torch.sum(pred_score[:, 1])
             loss.backward()
 

@@ -356,7 +356,7 @@ def prepare_input(args, tracks):
     return visual_feature, audio_feature
 
 
-def inference(args, cfg, visual_feature, audio_feature, lenTracks):
+def inference(args, cfg, visual_feature, audio_feature, lenTracks, visual_only=False):
     # initialize model
     model = loconet(cfg, n_channel=4, layer=1)
     model.loadParameters('pretrained/LoCoNet_LASER.model')
@@ -381,8 +381,11 @@ def inference(args, cfg, visual_feature, audio_feature, lenTracks):
             # get audio feature
             audioFeature = audio_feature[i].to(dtype=torch.float, device=device)
 
-            # run frontend part of the model
-            predScore = model.model.forward_evaluation(audioFeature, visualFeature, landmark, None, None, False)
+            if visual_only:
+                predScore = model.model.forward_visual_only_evaluation(visualFeature, landmark)
+            else:
+                audioFeature = audio_feature[i].to(dtype=torch.float, device=device)
+                predScore = model.model.forward_evaluation(audioFeature, visualFeature, landmark, None, None, False)
             print(f"Track {i} score shape: {predScore.shape}, values: {predScore[:5]}")
             # Save per-track scores as .npy
             try:
@@ -423,7 +426,7 @@ def visualization(args, pred, tracks):
     for fidx, frame in tqdm.tqdm(enumerate(flist), total=len(flist)):
         image = cv2.imread(frame)
         for face in faces[fidx]:
-            clr = colorDict[int((face['score'] >= 0.0))]
+            clr = colorDict[int((face['score'].item() >= 0.0))]
             if face['score'] >= 0:
                 l.append(fidx)
             txt = round(face['score'].item(), 2)
@@ -581,7 +584,7 @@ def main():
     visual_feature, audio_feature = prepare_input(args, allTracks)
 
     result = inference(args, cfg, visual_feature,
-                       audio_feature, lenTracks=len(allTracks))
+                       audio_feature, lenTracks=len(allTracks), visual_only=True)
 
     visualization(args, result, allTracks)
 
